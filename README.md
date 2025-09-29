@@ -21,7 +21,7 @@ This repository contains the complete codebase for a full-stack application that
 ### Model 1: Skin Color Analysis
 - **Input**: User-uploaded photo  
 - **Output**: Color palette representing dominant skin tones  
-- **Model Architecture**: `ResNet18`  
+- **Model Architecture**: `ResNet18`  or `mobileNetV2`
 - **Training Datasets**:
   - [MST-E Dataset (Google)](https://skintone.google/mste-dataset)
   - [Skin Tone Classification Dataset (Kaggle)](https://www.kaggle.com/datasets/usamarana/skin-tone-classification-dataset)
