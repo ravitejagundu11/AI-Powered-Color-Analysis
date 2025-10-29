@@ -1,4 +1,4 @@
-# Model: ResNeXt-50
+# Model: EfficientNetB0
 
 ## Performance
 
