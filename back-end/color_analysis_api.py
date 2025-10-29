@@ -15,19 +15,21 @@ from PIL import Image
 
 from fastapi import FastAPI, UploadFile, File, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse 
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from torchvision import transforms
 from torchvision.models import resnext50_32x4d, ResNeXt50_32X4D_Weights
-from constants import MODEL_PATH, COLOR_PALETTE_PATH 
+from constants import MODEL_PATH, COLOR_PALETTE_PATH
 
 # Import our custom modules
 from color_recommendation_engine import ColorRecommendationEngineV2
+from face_masking_preprocessor import get_face_masking_preprocessor
+
 
 # Initialize the FastAPI application
 app = FastAPI(
-    title="Personal Color Analysis API (Core)",
-    description="Accepts an image and returns personalized seasonal color palette.",
+    title="Personal Color Analysis API with Face Masking",
+    description="Accepts an image, applies face masking, and returns personalized seasonal color palette.",
     version="2.1.0"
 )
 
@@ -196,6 +198,20 @@ async def load_resources_on_startup():
         import traceback
         traceback.print_exc()
     
+    # Load Face Masking Preprocessor
+    if USE_FACE_MASKING:
+        try:
+            print(f"Loading Face Masking Preprocessor...")
+            # Note: This will fail if facer dependencies are not installed, 
+            # and FACE_PREPROCESSOR will remain None.
+            FACE_PREPROCESSOR = get_face_masking_preprocessor(device=str(DEVICE))
+            
+        except Exception as e:
+            print(f"WARNING: Face masking preprocessor failed to load: {e}")
+            print("   Continuing without face masking...")
+            import traceback
+            traceback.print_exc()
+
 
 # --- Preprocessing Pipeline ---
 preprocess = transforms.Compose([
@@ -206,9 +222,9 @@ preprocess = transforms.Compose([
 
 
 # --- NEW: Refactored Image Processing Helper (Masking logic removed) ---
-def _process_image_for_model(image_data: bytes, apply_face_masking: bool = False) -> Tuple[Image.Image, bool]:
+def _process_image_for_model(image_data: bytes, apply_face_masking: bool = True) -> Tuple[Image.Image, bool]:
     """
-    Handles all image loading and standard resizing.
+    Handles all image loading, face masking, and resizing.
     
     Returns:
         Tuple of (processed_pil_image, masking_applied)
@@ -222,14 +238,28 @@ def _process_image_for_model(image_data: bytes, apply_face_masking: bool = False
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Invalid image file: {str(e)}")
 
-    # Only standard resize remains
+    # Apply face masking if enabled and preprocessor is available
+    if apply_face_masking and FACE_PREPROCESSOR is not None:
+        try:
+            print("Applying face masking preprocessing...")
+            # FACE_PREPROCESSOR.process_image returns the masked/cropped PIL image at IMG_SIZE
+            processed_pil_image, _ = FACE_PREPROCESSOR.process_image(image_data, output_size=IMG_SIZE)
+            masking_applied = True
+            print("Face masking applied successfully")
+            return processed_pil_image, masking_applied
+        except Exception as e:
+            # Fall back to resized original image on failure
+            print(f"Face masking failed: {e}, using resized original image")
+            # Fall through to standard resizing
+    
+    # Standard resize if masking is disabled, preprocessor failed to load, or masking failed
     print("Resizing original image to model input size.")
     processed_pil_image = pil_image.resize(IMG_SIZE, Image.Resampling.LANCZOS)
     
     return processed_pil_image, masking_applied
 
 
-def analyze_image_tone(image_data: bytes, apply_face_masking: bool = False) -> tuple[str, float, Dict[str, float], np.ndarray, bool, Image.Image]:
+def analyze_image_tone(image_data: bytes, apply_face_masking: bool = True) -> tuple[str, float, Dict[str, float], np.ndarray, bool, Image.Image]:
     """
     Analyzes the image using the loaded PyTorch model
     
@@ -285,14 +315,14 @@ def analyze_image_tone(image_data: bytes, apply_face_masking: bool = False) -> t
     "/analyze-color",
     response_model=AnalysisResult,
     summary="Analyze image for personal color season",
-    description="Uploads a photo for seasonal color analysis."
+    description="Uploads a photo for seasonal color analysis with optional face masking."
 )
 async def analyze_color_endpoint(
     image: UploadFile = File(..., description="The image to analyze."),
     include_description: bool = Query(False, description="Include detailed season description"),
-    apply_face_masking: bool = Query(False, description="Apply face masking preprocessing") 
+    apply_face_masking: bool = Query(True, description="Apply face masking preprocessing")
 ) -> AnalysisResult:
-    """Basic color analysis endpoint"""
+    """Basic color analysis endpoint with optional face masking"""
     try:
         if image.content_type and not image.content_type.startswith('image/'):
             raise HTTPException(status_code=400, detail="File must be an image")
@@ -305,7 +335,7 @@ async def analyze_color_endpoint(
         if len(image_bytes) == 0:
             raise HTTPException(status_code=400, detail="Empty file uploaded")
         
-        # Analyze the image. apply_face_masking will be False here.
+        # Analyze the image (image is discarded here)
         season, confidence, all_probs, _, masking_applied, _ = analyze_image_tone(image_bytes, apply_face_masking)
         
         # Get palette from color engine
@@ -319,7 +349,7 @@ async def analyze_color_endpoint(
             confidence=round(confidence, 4),
             palettes=Palette(**palette_data),
             all_probabilities=all_probs,
-            face_masking_applied=masking_applied 
+            face_masking_applied=masking_applied
         )
         
         if include_description and COLOR_ENGINE:
@@ -337,6 +367,50 @@ async def analyze_color_endpoint(
         raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
 
 
+# --- NEW DEBUG ENDPOINT ---
+@app.post(
+    "/analyze-debug-masked-image",
+    summary="Returns the processed image after face masking/cropping.",
+    description="Uploads a photo and returns the exact 224x224 image (as JPEG) that is sent to the ML model. Gracefully falls back to unmasked/resized if masking fails."
+)
+async def analyze_debug_masked_image_endpoint(
+    image: UploadFile = File(..., description="The image to analyze."),
+    apply_face_masking: bool = Query(True, description="Apply face masking preprocessing (set to False to see the unmasked, resized input)")
+):
+    """Debug endpoint to return the preprocessed image for inspection"""
+    try:
+        if image.content_type and not image.content_type.startswith('image/'):
+            raise HTTPException(status_code=400, detail="File must be an image")
+        
+        image_bytes = await image.read()
+        
+        if len(image_bytes) > 5 * 1024 * 1024:
+            raise HTTPException(status_code=413, detail="File too large. Max 5MB allowed.")
+        
+        if len(image_bytes) == 0:
+            raise HTTPException(status_code=400, detail="Empty file uploaded")
+        
+        # --- Use the robust processing helper function ---
+        pil_image, masking_applied = _process_image_for_model(image_bytes, apply_face_masking)
+
+        # Convert PIL image to bytes
+        img_byte_arr = io.BytesIO()
+        pil_image.save(img_byte_arr, format='JPEG', quality=95) # Use high quality for debugging
+        img_byte_arr.seek(0)
+
+        print(f"Debug image returned: Masking applied={masking_applied}")
+
+        # Stream the image back, including the debug header
+        return StreamingResponse(img_byte_arr, media_type="image/jpeg", 
+                                 headers={"X-Face-Masking-Applied": str(masking_applied)})
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        print(f"Error in analyze_debug_masked_image_endpoint: {e}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
 
 
 @app.get("/health")
@@ -346,8 +420,8 @@ async def health_check():
         "status": "healthy" if (ML_MODEL is not None and COLOR_ENGINE is not None) else "partially_loaded",
         "model_loaded": ML_MODEL is not None,
         "color_engine_loaded": COLOR_ENGINE is not None,
-        "face_preprocessor_loaded": FACE_PREPROCESSOR is not None, 
-        "face_masking_enabled": USE_FACE_MASKING, 
+        "face_preprocessor_loaded": FACE_PREPROCESSOR is not None,
+        "face_masking_enabled": USE_FACE_MASKING,
         "device": str(DEVICE),
         "num_classes": 4
     }
@@ -357,15 +431,17 @@ async def health_check():
 async def root():
     """Root endpoint with API information"""
     return {
-        "message": "Personal Color Analysis API (Core v2.1)", 
-        "version": "2.1.0 (Core)",
+        "message": "Personal Color Analysis API with Face Masking v2.1",
+        "version": "2.1.1",
         "endpoints": {
             "health": "/health",
             "analyze_basic": "/analyze-color",
+            "analyze_debug_image": "/analyze-debug-masked-image", # Added debug endpoint
             "docs": "/docs"
         },
         "features": [
             "ML-powered season detection",
+            "Robust face masking (if dependencies install)",
             "Personalized color recommendations",
         ]
     }
