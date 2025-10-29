@@ -30,3 +30,11 @@ This repository contains the complete codebase for a full-stack application that
 - **Input**: Skin tone color palette or photo  
 - **Output**: Suggested outfit images from the Career Closet wardrobe  
 - **Functionality**: Matches colors from the detected palette to wardrobe items for optimal style recommendations
+
+### Installation 
+
+To install required libraries use following command.
+source install.sh
+
+To run the backend service use following command
+uvicorn color_analysis_api:app --reload

@@ -1,0 +1,371 @@
+import io
+import os
+from typing import Dict, List, Any, Optional, Tuple
+import logging
+from collections import OrderedDict
+
+# Ensure logging is configured early
+logging.basicConfig(level=logging.DEBUG)
+
+# PyTorch and ML/Image Imports
+import torch
+import torch.nn as nn
+import numpy as np
+from PIL import Image
+
+from fastapi import FastAPI, UploadFile, File, HTTPException, Query
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse 
+from pydantic import BaseModel, Field
+from torchvision import transforms
+from torchvision.models import resnext50_32x4d, ResNeXt50_32X4D_Weights
+from constants import MODEL_PATH, COLOR_PALETTE_PATH 
+
+# Import our custom modules
+from color_recommendation_engine import ColorRecommendationEngineV2
+
+# Initialize the FastAPI application
+app = FastAPI(
+    title="Personal Color Analysis API (Core)",
+    description="Accepts an image and returns personalized seasonal color palette.",
+    version="2.1.0"
+)
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+# --- GLOBAL CONFIGURATION ---
+ML_MODEL = None 
+COLOR_ENGINE = None
+FACE_PREPROCESSOR = None 
+IMG_SIZE = (224, 224) 
+DEVICE = torch.device("cpu")
+USE_FACE_MASKING = True  
+# ----------------------------
+
+# --- PYTORCH MODEL ARCHITECTURE ---
+class ColorAnalysisModel(nn.Module):
+    def __init__(self, num_classes=4):
+        super().__init__()
+        self.base_model = resnext50_32x4d(weights=ResNeXt50_32X4D_Weights.IMAGENET1K_V1)
+        num_ftrs = self.base_model.fc.in_features
+        self.base_model.fc = nn.Linear(num_ftrs, num_classes)
+
+    def forward(self, x):
+        return self.base_model(x)
+
+
+# --- ENHANCED DATA MODELS (Pydantic) ---
+class Color(BaseModel):
+    name: str
+    hex: str
+    rgb: Optional[List[int]] = None
+
+
+class Palette(BaseModel):
+    primary: List[Color]
+    secondary: List[Color]
+
+
+class SeasonalAnalysis(BaseModel):
+    primary_season: str
+    primary_score: float
+    secondary_season: str
+    secondary_score: float
+    all_scores: Dict[str, float]
+
+
+class SeasonDescription(BaseModel):
+    name: str
+    code: str
+    description: str
+    characteristics: Dict[str, str]
+    hair_colors: List[str]
+    makeup_recommendations: Dict[str, List[str]]
+    avoid_colors: List[Color]
+
+
+class RecommendedColor(BaseModel):
+    name: str
+    hex: str
+    rgb: List[int]
+    season: str
+    fit_score: float
+    use_for: List[str]
+    confidence_multiplier: float
+
+
+class AnalysisResult(BaseModel):
+    season: str
+    confidence: float = Field(..., description="Prediction confidence (0-1)")
+    palettes: Palette
+    all_probabilities: Dict[str, float] = Field(..., description="All season probabilities")
+    description: Optional[SeasonDescription] = None
+    face_masking_applied: bool = Field(False, description="Whether face masking was applied")
+
+
+class DetailedAnalysisResult(BaseModel):
+    season: str
+    confidence: float
+    palettes: Palette
+    seasonal_analysis: SeasonalAnalysis
+    recommended_colors: List[RecommendedColor]
+    description: SeasonDescription
+    face_masking_applied: bool = False
+
+
+def fix_state_dict_keys(state_dict, model_has_base_model=True):
+    """Fix state_dict keys to match the model architecture"""
+    new_state_dict = OrderedDict()
+    
+    for key, value in state_dict.items():
+        new_key = key
+        
+        if new_key.startswith('module.'):
+            new_key = new_key.replace('module.', '')
+        
+        if model_has_base_model:
+            if not new_key.startswith('base_model.'):
+                new_key = 'base_model.' + new_key
+        else:
+            if new_key.startswith('base_model.'):
+                new_key = new_key.replace('base_model.', '')
+        
+        new_state_dict[new_key] = value
+    
+    return new_state_dict
+
+
+@app.on_event("startup")
+async def load_resources_on_startup():
+    """Load all models on startup"""
+    global ML_MODEL, COLOR_ENGINE, FACE_PREPROCESSOR
+    
+    # Load ML Model
+    try:
+        if not os.path.exists(MODEL_PATH):
+            print(f"Model file not found at {MODEL_PATH}")
+            return
+        
+        print(f"Loading ML model from {MODEL_PATH}...")
+        
+        model = ColorAnalysisModel(num_classes=4)
+        checkpoint = torch.load(MODEL_PATH, map_location=DEVICE, weights_only=False)
+        
+        if isinstance(checkpoint, dict):
+            if 'state_dict' in checkpoint:
+                state_dict = checkpoint['state_dict']
+            elif 'model_state_dict' in checkpoint:
+                state_dict = checkpoint['model_state_dict']
+            else:
+                state_dict = checkpoint
+        else:
+            state_dict = checkpoint
+        
+        state_dict = fix_state_dict_keys(state_dict, model_has_base_model=True)
+        model.load_state_dict(state_dict, strict=True)
+        model.eval()
+        model = model.to(DEVICE)
+        
+        ML_MODEL = model
+        print(f"PyTorch Model loaded successfully!")
+        
+    except Exception as e:
+        print(f"ERROR loading PyTorch model: {e}")
+        import traceback
+        traceback.print_exc()
+    
+    # Load Color Recommendation Engine
+    try:
+        if not os.path.exists(COLOR_PALETTE_PATH):
+            print(f"Color palette file not found at {COLOR_PALETTE_PATH}")
+            return
+        
+        print(f"Loading Color Recommendation Engine...")
+        COLOR_ENGINE = ColorRecommendationEngineV2(COLOR_PALETTE_PATH)
+        
+    except Exception as e:
+        print(f"ERROR loading Color Recommendation Engine: {e}")
+        import traceback
+        traceback.print_exc()
+    
+
+# --- Preprocessing Pipeline ---
+preprocess = transforms.Compose([
+    transforms.Resize(IMG_SIZE),
+    transforms.ToTensor(),
+    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]), 
+])
+
+
+# --- NEW: Refactored Image Processing Helper (Masking logic removed) ---
+def _process_image_for_model(image_data: bytes, apply_face_masking: bool = False) -> Tuple[Image.Image, bool]:
+    """
+    Handles all image loading and standard resizing.
+    
+    Returns:
+        Tuple of (processed_pil_image, masking_applied)
+    """
+    masking_applied = False
+    
+    try:
+        pil_image = Image.open(io.BytesIO(image_data))
+        if pil_image.mode != 'RGB':
+            pil_image = pil_image.convert('RGB')
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid image file: {str(e)}")
+
+    # Only standard resize remains
+    print("Resizing original image to model input size.")
+    processed_pil_image = pil_image.resize(IMG_SIZE, Image.Resampling.LANCZOS)
+    
+    return processed_pil_image, masking_applied
+
+
+def analyze_image_tone(image_data: bytes, apply_face_masking: bool = False) -> tuple[str, float, Dict[str, float], np.ndarray, bool, Image.Image]:
+    """
+    Analyzes the image using the loaded PyTorch model
+    
+    Returns:
+        Tuple of (season_name, confidence, all_probabilities, raw_predictions, masking_applied, processed_pil_image)
+    """
+    if ML_MODEL is None:
+        raise HTTPException(status_code=503, detail="ML Model not initialized.")
+
+    try:
+        processed_pil_image, masking_applied = _process_image_for_model(image_data, apply_face_masking)
+        
+        # Preprocess for PyTorch
+        input_tensor = preprocess(processed_pil_image)
+        input_batch = input_tensor.unsqueeze(0).to(DEVICE)
+        
+        # Run inference
+        with torch.no_grad():
+            output = ML_MODEL(input_batch)
+        
+        probabilities = torch.nn.functional.softmax(output, dim=1)
+        predicted_index = torch.argmax(probabilities, dim=1).item()
+        
+        # Map to seasons: [Autumn, Summer, Winter, Spring]
+        SEASON_LABELS = ['Autumn', 'Summer', 'Winter', 'Spring']
+        season_name = SEASON_LABELS[predicted_index]
+        confidence = probabilities[0, predicted_index].item()
+        
+        all_probs = {
+            season: probabilities[0, idx].item() 
+            for idx, season in enumerate(SEASON_LABELS)
+        }
+        
+        raw_predictions = probabilities[0].cpu().numpy()
+        
+        print(f"Prediction: {season_name} (Confidence: {confidence:.2%})")
+        
+        return season_name, confidence, all_probs, raw_predictions, masking_applied, processed_pil_image
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Image analysis error: {e}")
+        import traceback
+        traceback.print_exc()
+        # Raise generic 400 error if it wasn't already an HTTPException
+        raise HTTPException(status_code=400, detail=f"Image analysis failed: {str(e)}")
+
+
+# --- API ENDPOINTS ---
+
+@app.post(
+    "/analyze-color",
+    response_model=AnalysisResult,
+    summary="Analyze image for personal color season",
+    description="Uploads a photo for seasonal color analysis."
+)
+async def analyze_color_endpoint(
+    image: UploadFile = File(..., description="The image to analyze."),
+    include_description: bool = Query(False, description="Include detailed season description"),
+    apply_face_masking: bool = Query(False, description="Apply face masking preprocessing") 
+) -> AnalysisResult:
+    """Basic color analysis endpoint"""
+    try:
+        if image.content_type and not image.content_type.startswith('image/'):
+            raise HTTPException(status_code=400, detail="File must be an image")
+        
+        image_bytes = await image.read()
+        
+        if len(image_bytes) > 5 * 1024 * 1024:
+            raise HTTPException(status_code=413, detail="File too large. Max 5MB allowed.")
+        
+        if len(image_bytes) == 0:
+            raise HTTPException(status_code=400, detail="Empty file uploaded")
+        
+        # Analyze the image. apply_face_masking will be False here.
+        season, confidence, all_probs, _, masking_applied, _ = analyze_image_tone(image_bytes, apply_face_masking)
+        
+        # Get palette from color engine
+        if COLOR_ENGINE:
+            palette_data = COLOR_ENGINE.get_palette_for_season(season)
+        else:
+            raise HTTPException(status_code=503, detail="Color Engine not initialized")
+        
+        result = AnalysisResult(
+            season=season,
+            confidence=round(confidence, 4),
+            palettes=Palette(**palette_data),
+            all_probabilities=all_probs,
+            face_masking_applied=masking_applied 
+        )
+        
+        if include_description and COLOR_ENGINE:
+            # Assuming get_season_description returns a dict compatible with SeasonDescription
+            result.description = SeasonDescription(**COLOR_ENGINE.get_season_description(season))
+        
+        return result
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        print(f"Error in analyze_color_endpoint: {e}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
+
+
+
+
+@app.get("/health")
+async def health_check():
+    """Check if the API and model are ready"""
+    return {
+        "status": "healthy" if (ML_MODEL is not None and COLOR_ENGINE is not None) else "partially_loaded",
+        "model_loaded": ML_MODEL is not None,
+        "color_engine_loaded": COLOR_ENGINE is not None,
+        "face_preprocessor_loaded": FACE_PREPROCESSOR is not None, 
+        "face_masking_enabled": USE_FACE_MASKING, 
+        "device": str(DEVICE),
+        "num_classes": 4
+    }
+
+
+@app.get("/")
+async def root():
+    """Root endpoint with API information"""
+    return {
+        "message": "Personal Color Analysis API (Core v2.1)", 
+        "version": "2.1.0 (Core)",
+        "endpoints": {
+            "health": "/health",
+            "analyze_basic": "/analyze-color",
+            "docs": "/docs"
+        },
+        "features": [
+            "ML-powered season detection",
+            "Personalized color recommendations",
+        ]
+    }
