@@ -1,22 +1,37 @@
 import { useState, useEffect, useRef, type JSX } from 'react';
 import CameraView from './components/CameraView';
+import PreviewView from './components/PreviewView';
+import ProcessingView from './components/ProcessingView';
+import ResultView from './components/ResultView';
+import type { ViewState, IColor } from './types';
 import Header from './components/Header';
+
+// API Configuration
+const API_BASE_URL = 'http://localhost:8000';
 
 type InputMode = 'camera' | 'upload';
 
 export default function App(): JSX.Element {
+  const [view, setView] = useState<ViewState>('camera');
   const [inputMode, setInputMode] = useState<InputMode>('camera');
+  const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [resultSeason, setResultSeason] = useState<string | null>(null);
+  const [primaryPalette, setPrimaryPalette] = useState<IColor[]>([]);
+  const [secondaryPalette, setSecondaryPalette] = useState<IColor[]>([]);
+  const [confidence, setConfidence] = useState<number>(0);
+  const [allProbabilities, setAllProbabilities] = useState<Record<string, number>>({});
   const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (inputMode === 'camera') startCamera();
+    if (view === 'camera' && inputMode === 'camera') startCamera();
     else stopCamera();
     return () => stopCamera();
-  }, [inputMode]);
+  }, [view, inputMode]);
 
   const startCamera = async () => {
     setError(null);
@@ -54,9 +69,57 @@ export default function App(): JSX.Element {
 
   const capturePhoto = () => {
     const video = videoRef.current;
-    if (video) {
-      // Photo captured successfully - could add a simple success message or animation here
-      console.log('Photo captured successfully!');
+    const canvas = canvasRef.current;
+    if (video && canvas) {
+      const videoDisplayWidth = video.videoWidth;
+      const videoDisplayHeight = video.videoHeight;
+
+      let sx = 0;
+      let sy = 0;
+      let sWidth = videoDisplayWidth;
+      let sHeight = videoDisplayHeight;
+
+      if (videoDisplayWidth > videoDisplayHeight) {
+        sWidth = videoDisplayHeight;
+        sx = (videoDisplayWidth - sWidth) / 2;
+      } else if (videoDisplayHeight > videoDisplayWidth) {
+        sHeight = videoDisplayWidth;
+        sy = (videoDisplayHeight - sHeight) / 2;
+      }
+
+      const squareSourceSize = Math.min(sWidth, sHeight);
+      const captureRatio = 0.9;
+      const captureSize = squareSourceSize * captureRatio;
+      const captureOffset = squareSourceSize * (1 - captureRatio) / 2;
+
+      const finalCropX = sx + captureOffset;
+      const finalCropY = sy + captureOffset;
+
+      canvas.width = captureSize;
+      canvas.height = captureSize;
+
+      const context = canvas.getContext('2d');
+      if (!context) {
+        console.error("Failed to get 2D context from canvas");
+        return;
+      }
+
+      context.save();
+      context.scale(-1, 1);
+      context.drawImage(
+        video,
+        finalCropX, finalCropY,
+        captureSize, captureSize,
+        -canvas.width, 0, canvas.width, canvas.height
+      );
+      context.restore();
+
+      const imageData = canvas.toDataURL('image/png');
+      const placeholderImageData = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNTAwIiBoZWlnaHQ9IjUwMCIgdmlld0JveD0iMCAwIDUwMCA1MDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgZmlsbD0iIzQ3NWQ3YSI+CiAgPHJlY3Qgd2lkdGg9IjUwMCIgaGVpZ2h0PSI1MDAiIGZpbGw9IiM3Mzk2YjciPjwvcmVjdD4KICA8ZyB0cmFuc2Zvcm09InRyYW5zbGF0ZSgyNTAgMjUwKSI+CiAgICA8cGF0aCBkPSJNIDAgLTEyNSBDIDY5LjAgLTEyNSA4Ny41IC04Ny41IDg3LjUgLTYyLjUgQyA4Ny41IC0zNy41IDY5LjAgMCAwIDAgQyAtNjkuMCAwIC04Ny41IC0zNy41IC04Ny41IC02Mi41IEMgLTg3LjUgLTg3LjUgLTY5LjAgLTEyNSAwIC0xMjUgWiIgZmlsbD0iI2YxZmFlZSI+PC9wYXRoPgogICAgPGNpcmNsZSBjeD0iMCIgY3k9IjAiIHI9IjY1IiBmaWxsPSIjZjFmYWVlIj48L2NpcmNsZT4KICAgIDxyZWN0IHg9Ii0xMDAiIHk9IjM1IiB3aWR0aD0iMjAwIiBoZWlnaHQ9IjEwMCIgcng9IjUwIiByeT0iNTAiIGZpbGw9IiNmMWZhZWUiPjwvcmVjdD4KICA8L2c+Cjwvc3ZnPg==';
+      const finalImageData = (video.videoWidth > 0) ? imageData : placeholderImageData;
+
+      setCapturedImage(finalImageData);
+      setView('preview');
     }
   };
 
@@ -78,15 +141,51 @@ export default function App(): JSX.Element {
     }
 
     setError(null);
-    console.log('File uploaded successfully:', file.name);
+
+    // Read the file and create preview
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const imageData = e.target?.result as string;
+      setCapturedImage(imageData);
+      setView('preview');
+    };
+    reader.onerror = () => {
+      setError('Failed to read the image file');
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleUploadClick = () => {
     fileInputRef.current?.click();
   };
 
+  const handleRetake = () => {
+    setCapturedImage(null);
+    setView('camera');
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const handleAccept = () => setView('processing');
+
+  const handleStartOver = () => {
+    setCapturedImage(null);
+    setResultSeason(null);
+    setPrimaryPalette([]);
+    setSecondaryPalette([]);
+    setConfidence(0);
+    setAllProbabilities({});
+    setError(null);
+    setView('camera');
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
   const switchToCamera = () => {
     setInputMode('camera');
+    setCapturedImage(null);
     setError(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
@@ -98,6 +197,75 @@ export default function App(): JSX.Element {
     stopCamera();
     setError(null);
   };
+
+  // Helper function to convert dataURL to Blob
+  const dataURLtoBlob = (dataURL: string): Blob => {
+    const arr = dataURL.split(',');
+    const mimeMatch = arr[0].match(/:(.*?);/);
+    const mime = mimeMatch ? mimeMatch[1] : 'image/png';
+    const bstr = atob(arr[1]);
+    let n = bstr.length;
+    const u8arr = new Uint8Array(n);
+    while (n--) {
+      u8arr[n] = bstr.charCodeAt(n);
+    }
+    return new Blob([u8arr], { type: mime });
+  };
+
+  // API call effect
+  useEffect(() => {
+    if (view === 'processing' && capturedImage) {
+      const analyzeImage = async () => {
+        try {
+          const imageBlob = dataURLtoBlob(capturedImage);
+          const formData = new FormData();
+          formData.append('image', imageBlob, 'captured-image.png');
+
+          const includeDescription = true;
+          const url = `${API_BASE_URL}/analyze-color?include_description=${includeDescription}`;
+
+          console.log('🚀 Sending image to API...');
+
+          const response = await fetch(url, {
+            method: 'POST',
+            body: formData,
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
+            throw new Error(errorData.detail || `API error: ${response.status}`);
+          }
+
+          const apiResponse = await response.json();
+          console.log('✅ API Response:', apiResponse);
+
+          setResultSeason(apiResponse.season);
+          setPrimaryPalette(apiResponse.palettes.primary.map((color: any) => ({
+            name: color.name,
+            hex: color.hex
+          })));
+          setSecondaryPalette(apiResponse.palettes.secondary.map((color: any) => ({
+            name: color.name,
+            hex: color.hex
+          })));
+          setConfidence(apiResponse.confidence);
+          setAllProbabilities(apiResponse.all_probabilities);
+
+          setView('result');
+
+        } catch (err) {
+          console.error('❌ Error analyzing image:', err);
+          const errorMessage = err instanceof Error ? err.message : 'Failed to analyze image. Please try again.';
+          setError(errorMessage);
+          setView('camera');
+
+          alert(`Analysis Error: ${errorMessage}\n\nPlease ensure:\n- The API server is running at ${API_BASE_URL}\n- Your image is valid\n- You have internet connection`);
+        }
+      };
+
+      analyzeImage();
+    }
+  }, [view, capturedImage]);
 
   // Render upload view
   const renderUploadView = () => (
@@ -155,49 +323,65 @@ export default function App(): JSX.Element {
       <Header />
 
       <main className="flex-grow flex flex-col items-center justify-center w-full max-w-2xl mx-auto p-4">
+        <canvas ref={canvasRef} className="hidden"></canvas>
 
-        {/* Mode Toggle */}
-        <div className="w-full mb-6">
-          <div className="flex bg-white rounded-lg shadow-md p-1">
-            <button
-              onClick={switchToCamera}
-              className={`flex-1 py-3 px-4 rounded-md font-semibold transition-all duration-300 ${
-                inputMode === 'camera'
-                  ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-md'
-                  : 'text-gray-600 hover:bg-gray-100'
-              }`}
-            >
-              <span className="flex items-center justify-center gap-2">
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-                Camera
-              </span>
-            </button>
-            <button
-              onClick={switchToUpload}
-              className={`flex-1 py-3 px-4 rounded-md font-semibold transition-all duration-300 ${
-                inputMode === 'upload'
-                  ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-md'
-                  : 'text-gray-600 hover:bg-gray-100'
-              }`}
-            >
-              <span className="flex items-center justify-center gap-2">
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                </svg>
-                Upload
-              </span>
-            </button>
+        {/* Mode Toggle - Only show on camera view */}
+        {view === 'camera' && (
+          <div className="w-full mb-6">
+            <div className="flex bg-white rounded-lg shadow-md p-1">
+              <button
+                onClick={switchToCamera}
+                className={`flex-1 py-3 px-4 rounded-md font-semibold transition-all duration-300 ${
+                  inputMode === 'camera'
+                    ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-md'
+                    : 'text-gray-600 hover:bg-gray-100'
+                }`}
+              >
+                <span className="flex items-center justify-center gap-2">
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  Camera
+                </span>
+              </button>
+              <button
+                onClick={switchToUpload}
+                className={`flex-1 py-3 px-4 rounded-md font-semibold transition-all duration-300 ${
+                  inputMode === 'upload'
+                    ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-md'
+                    : 'text-gray-600 hover:bg-gray-100'
+                }`}
+              >
+                <span className="flex items-center justify-center gap-2">
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                  </svg>
+                  Upload
+                </span>
+              </button>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Main Content */}
-        {inputMode === 'camera' && (
+        {view === 'camera' && inputMode === 'camera' && (
           <CameraView videoRef={videoRef} streamRef={streamRef} countdown={countdown} error={error} onCapture={handleCapture} />
         )}
-        {inputMode === 'upload' && renderUploadView()}
+        {view === 'camera' && inputMode === 'upload' && renderUploadView()}
+        {view === 'preview' && (
+          <PreviewView image={capturedImage!} onRetake={handleRetake} onAccept={handleAccept} />
+        )}
+        {view === 'processing' && <ProcessingView />}
+        {view === 'result' && (
+          <ResultView
+            image={capturedImage!}
+            season={resultSeason}
+            primary={primaryPalette}
+            secondary={secondaryPalette}
+            onRestart={handleStartOver}
+          />
+        )}
       </main>
       <style>{`
         @keyframes ping-once {
