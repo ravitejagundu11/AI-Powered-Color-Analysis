@@ -84,7 +84,7 @@ export default function App(): JSX.Element {
         sx = (videoDisplayWidth - sWidth) / 2;
       } else if (videoDisplayHeight > videoDisplayWidth) {
         sHeight = videoDisplayWidth;
-        sy = (videoDisplayHeight - sHeight) / 2;
+        sy = (videoDisplayHeight - sWidth) / 2;
       }
 
       const squareSourceSize = Math.min(sWidth, sHeight);
@@ -118,7 +118,7 @@ export default function App(): JSX.Element {
       const placeholderImageData = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNTAwIiBoZWlnaHQ9IjUwMCIgdmlld0JveD0iMCAwIDUwMCA1MDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgZmlsbD0iIzQ3NWQ3YSI+CiAgPHJlY3Qgd2lkdGg9IjUwMCIgaGVpZ2h0PSI1MDAiIGZpbGw9IiM3Mzk2YjciPjwvcmVjdD4KICA8ZyB0cmFuc2Zvcm09InRyYW5zbGF0ZSgyNTAgMjUwKSI+CiAgICA8cGF0aCBkPSJNIDAgLTEyNSBDIDY5LjAgLTEyNSA4Ny41IC04Ny41IDg3LjUgLTYyLjUgQyA4Ny41IC0zNy41IDY5LjAgMCAwIDAgQyAtNjkuMCAwIC04Ny41IC0zNy41IC04Ny41IC02Mi41IEMgLTg3LjUgLTg3LjUgLTY5LjAgLTEyNSAwIC0xMjUgWiIgZmlsbD0iI2YxZmFlZSI+PC9wYXRoPgogICAgPGNpcmNsZSBjeD0iMCIgY3k9IjAiIHI9IjY1IiBmaWxsPSIjZjFmYWVlIj48L2NpcmNsZT4KICAgIDxyZWN0IHg9Ii0xMDAiIHk9IjM1IiB3aWR0aD0iMjAwIiBoZWlnaHQ9IjEwMCIgcng9IjUwIiByeT0iNTAiIGZpbGw9IiNmMWZhZWUiPjwvcmVjdD4KICA8L2c+Cjwvc3ZnPg==';
       const finalImageData = (video.videoWidth > 0) ? imageData : placeholderImageData;
 
-      setCapturedImage(finalImageData);
+      setCapturedImage(imageData);
       setView('preview');
     }
   };
@@ -267,9 +267,9 @@ export default function App(): JSX.Element {
     }
   }, [view, capturedImage]);
 
-  // Render upload view
+  // Render upload view - Wrapped in max-w-2xl
   const renderUploadView = () => (
-    <div className="w-full space-y-6">
+    <div className="w-full space-y-6 max-w-2xl">
       <div className="text-center mb-6">
         <h2 className="text-2xl font-bold text-gray-800 mb-2">Upload Your Photo</h2>
         <p className="text-gray-600">Choose a clear photo for color analysis</p>
@@ -322,12 +322,13 @@ export default function App(): JSX.Element {
     <div className="min-h-screen bg-gray-50 text-gray-900 flex flex-col font-sans">
       <Header />
 
-      <main className="flex-grow flex flex-col items-center justify-center w-full max-w-2xl mx-auto p-4">
+      {/* STEP 1: Main container is WIDE to allow ResultView to stretch */}
+      <main className="flex-grow flex flex-col items-center justify-center w-full mx-auto p-4">
         <canvas ref={canvasRef} className="hidden"></canvas>
 
-        {/* Mode Toggle - Only show on camera view */}
+        {/* Mode Toggle - Wrapped in max-w-2xl */}
         {view === 'camera' && (
-          <div className="w-full mb-6">
+          <div className="w-full mb-6 max-w-2xl"> 
             <div className="flex bg-white rounded-lg shadow-md p-1">
               <button
                 onClick={switchToCamera}
@@ -365,14 +366,25 @@ export default function App(): JSX.Element {
         )}
 
         {/* Main Content */}
+        {/* STEP 2: Wrap all other views in a constrained div (except ResultView) */}
         {view === 'camera' && inputMode === 'camera' && (
-          <CameraView videoRef={videoRef} streamRef={streamRef} countdown={countdown} error={error} onCapture={handleCapture} />
+          <div className="max-w-2xl w-full">
+            <CameraView videoRef={videoRef} streamRef={streamRef} countdown={countdown} error={error} onCapture={handleCapture} />
+          </div>
         )}
         {view === 'camera' && inputMode === 'upload' && renderUploadView()}
         {view === 'preview' && (
-          <PreviewView image={capturedImage!} onRetake={handleRetake} onAccept={handleAccept} />
+          <div className="max-w-2xl w-full">
+            <PreviewView image={capturedImage!} onRetake={handleRetake} onAccept={handleAccept} />
+          </div>
         )}
-        {view === 'processing' && <ProcessingView />}
+        {view === 'processing' && (
+          <div className="max-w-2xl w-full">
+            <ProcessingView />
+          </div>
+        )}
+        
+        {/* ResultView is NOT wrapped, allowing it to use the full width of the <main> container */}
         {view === 'result' && (
           <ResultView
             image={capturedImage!}
@@ -380,6 +392,8 @@ export default function App(): JSX.Element {
             primary={primaryPalette}
             secondary={secondaryPalette}
             onRestart={handleStartOver}
+            confidence={confidence} 
+            allProbabilities={allProbabilities}
           />
         )}
       </main>
