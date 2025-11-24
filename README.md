@@ -38,3 +38,7 @@ source install.sh
 
 To run the backend service use following command
 uvicorn color_analysis_api:app --reload
+
+
+### BACKGROUND REMOVAL & COLOR EXTRACTION 
+https://colab.research.google.com/drive/1FruiATG_iRxYj1aFckxRbM6ce_wtmheT?usp=sharing
