@@ -150,70 +150,73 @@ export default function App(): JSX.Element {
 
         {/* Select Options View */}
         {view === 'select' && (
-          <div className="w-full max-w-2xl">
-            <SelectOptionsView
-              onSelectCamera={handleSelectCamera}
-              onSelectUpload={handleSelectUpload}
-            />
-            {/* Back to Home Button */}
-            <div className="mt-8 text-center">
-              <button
-                onClick={handleBackToHome}
-                className="text-gray-600 hover:text-gray-900 transition-colors duration-200 flex items-center gap-2 mx-auto"
-                aria-label="Back to home"
-              >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-                Back to Home
-              </button>
+          <>
+            {/* Back Button - Fixed at top-left of screen */}
+            <button
+              onClick={handleBackToHome}
+              className="fixed top-6 left-6 text-gray-600 hover:text-gray-900 transition-colors duration-200 flex items-center gap-2 z-50"
+              aria-label="Back to home"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+              <span className="font-medium">Back to Home</span>
+            </button>
+
+            <div className="w-full max-w-2xl">
+              <SelectOptionsView
+                onSelectCamera={handleSelectCamera}
+                onSelectUpload={handleSelectUpload}
+              />
             </div>
-          </div>
+          </>
         )}
 
         {/* Camera View */}
         {view === 'camera' && inputMode === 'camera' && (
-          <div className="max-w-2xl w-full">
-            <CameraView videoRef={videoRef} countdown={countdown} error={error} onCapture={handleCapture} />
-            {/* Back to Options Button */}
-            <div className="mt-6 text-center">
-              <button
-                onClick={handleBackToSelect}
-                className="text-gray-600 hover:text-gray-900 transition-colors duration-200 flex items-center gap-2 mx-auto"
-                aria-label="Back to options"
-              >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-                Back to Options
-              </button>
+          <>
+            {/* Back Button - Fixed at top-left of screen */}
+            <button
+              onClick={handleBackToSelect}
+              className="fixed top-6 left-6 text-gray-600 hover:text-gray-900 transition-colors duration-200 flex items-center gap-2 z-50"
+              aria-label="Back to options"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+              <span className="font-medium">Back to Options</span>
+            </button>
+
+            <div className="max-w-2xl w-full">
+              <CameraView videoRef={videoRef} countdown={countdown} error={error} onCapture={handleCapture} />
             </div>
-          </div>
+          </>
         )}
 
         {/* Upload View */}
         {view === 'camera' && inputMode === 'upload' && (
-          <div className="w-full max-w-2xl">
-            <UploadView
-              fileInputRef={fileInputRef}
-              handleFileUpload={handleFileUpload}
-              handleUploadClick={handleUploadClick}
-              error={error}
-            />
-            {/* Back to Options Button */}
-            <div className="mt-6 text-center">
-              <button
-                onClick={handleBackToSelect}
-                className="text-gray-600 hover:text-gray-900 transition-colors duration-200 flex items-center gap-2 mx-auto"
-                aria-label="Back to options"
-              >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-                Back to Options
-              </button>
+          <>
+            {/* Back Button - Fixed at top-left of screen */}
+            <button
+              onClick={handleBackToSelect}
+              className="fixed top-6 left-6 text-gray-600 hover:text-gray-900 transition-colors duration-200 flex items-center gap-2 z-50"
+              aria-label="Back to options"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+              <span className="font-medium">Back to Options</span>
+            </button>
+
+            <div className="w-full max-w-2xl">
+              <UploadView
+                fileInputRef={fileInputRef}
+                handleFileUpload={handleFileUpload}
+                handleUploadClick={handleUploadClick}
+                error={error}
+              />
             </div>
-          </div>
+          </>
         )}
 
         {/* Preview View */}

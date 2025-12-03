@@ -2,6 +2,7 @@ import type { JSX } from 'react';
 import { useMemo, useState, useEffect } from 'react';
 import type { IColor } from '../types';
 import { OUTFITS_BY_SEASON, OUTFIT_LOADING_DELAY_MS } from '../constants';
+import { SEASON_DESCRIPTIONS, getConfidenceLevel, CONFIDENCE_DESCRIPTION } from '../constants/seasonDescriptions';
 
 interface ResultViewProps {
   image: string;
@@ -48,7 +49,7 @@ export default function ResultView({
             <img
               src={image}
               alt="Your captured photo for color analysis"
-              className="w-full aspect-[4/3] rounded-lg object-cover shadow-md border-2 border-gray-200"
+              className="w-full aspect-[4/3] rounded-lg object-cover shadow-md"
             />
             {/* Recapture/Reupload Button */}
             <button
@@ -62,16 +63,37 @@ export default function ResultView({
           </div>
 
           {/* Season and Confidence */}
-          <div className="bg-white border-2 border-gray-200 rounded-lg p-4 flex flex-col justify-center">
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">
-              Your Season: {season}
-            </h1>
-            {confidence !== undefined && (
-              <p className="text-sm text-gray-600">
-                Confidence: <span className="font-semibold text-gray-900">
-                  {(confidence * 100).toFixed(1)}%
-                </span>
+          <div className="bg-white p-6 flex flex-col justify-center space-y-4">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">
+                Your Season: {season}
+              </h1>
+              {season && SEASON_DESCRIPTIONS[season] && (
+                <p className="text-base text-gray-600 leading-relaxed mb-3">
+                  {SEASON_DESCRIPTIONS[season]}
+                </p>
+              )}
+              <p className="text-base text-gray-600 leading-relaxed">
+                Use the color palettes below when shopping for clothes, accessories, and makeup to complement your natural coloring.
               </p>
+            </div>
+
+            {confidence !== undefined && (
+              <div className="pt-3 border-t border-gray-200">
+                <p className="text-sm text-gray-700 mb-1">
+                  <span className="font-semibold">Confidence:</span>{' '}
+                  <span className="font-bold text-gray-900">
+                    {(confidence * 100).toFixed(1)}%
+                  </span>
+                  {' '}
+                  <span className="text-gray-600">
+                    ({getConfidenceLevel(confidence)})
+                  </span>
+                </p>
+                <p className="text-xs text-gray-500">
+                  {CONFIDENCE_DESCRIPTION}
+                </p>
+              </div>
             )}
           </div>
         </div>
@@ -79,13 +101,13 @@ export default function ResultView({
         {/* Section 2: Color Palettes - 50/50 Split with 3x3 Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Primary Colors */}
-          <div className="bg-white border-2 border-gray-200 rounded-lg p-4">
+          <div className="bg-white p-4">
             <h2 className="text-lg font-bold text-gray-900 mb-3">Primary Color Palette</h2>
             <div className="grid grid-cols-6 gap-2">
               {primary.map((color, idx) => (
                 <div key={`primary-${color.hex}-${idx}`} className="text-center">
                   <div
-                    className="w-full aspect-square rounded-md shadow-sm mb-1 border border-gray-200"
+                    className="w-full aspect-square rounded-md shadow-sm mb-1"
                     style={{ backgroundColor: color.hex }}
                     role="img"
                     aria-label={`${color.name} color swatch`}
@@ -98,13 +120,13 @@ export default function ResultView({
           </div>
 
           {/* Secondary Colors */}
-          <div className="bg-white border-2 border-gray-200 rounded-lg p-4">
+          <div className="bg-white p-4">
             <h2 className="text-lg font-bold text-gray-900 mb-3">Secondary Color Palette</h2>
             <div className="grid grid-cols-6 gap-2">
               {secondary.map((color, idx) => (
                 <div key={`secondary-${color.hex}-${idx}`} className="text-center">
                   <div
-                    className="w-full aspect-square rounded-md shadow-sm mb-1 border border-gray-200"
+                    className="w-full aspect-square rounded-md shadow-sm mb-1"
                     style={{ backgroundColor: color.hex }}
                     role="img"
                     aria-label={`${color.name} color swatch`}
@@ -118,12 +140,12 @@ export default function ResultView({
         </div>
 
         {/* Section 3: Recommended Outfits - Full Width */}
-        <div className="bg-white border-2 border-gray-200 rounded-lg p-6">
-          <h2 className="text-2xl font-bold text-gray-900 mb-4">
+        <div className="bg-white p-4">
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">
             Recommended Outfits
           </h2>
-          <p className="text-sm text-gray-600 mb-6">
-            Curated looks aligned with your {season} palette
+          <p className="text-base text-gray-600 mb-6">
+            Curated looks from Mastodon Career Closet aligned with your {season} palette. Browse the collection to find more pieces that match your colors.
           </p>
 
           {outfitsLoading ? (
@@ -142,7 +164,7 @@ export default function ResultView({
               {outfitImages.map((src, i) => (
                 <button
                   key={`outfit-${i}`}
-                  className="group relative overflow-hidden rounded-lg border-2 border-gray-200 hover:border-black transition-all duration-200"
+                  className="group relative overflow-hidden rounded-lg hover:shadow-lg transition-all duration-200"
                   onClick={() => window.open(`${src}?auto=format&fit=crop&w=1200&q=80`, '_blank', 'noopener,noreferrer')}
                   aria-label={`View recommended outfit ${i + 1} in full size`}
                 >
