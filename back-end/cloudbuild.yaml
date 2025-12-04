@@ -1,0 +1,29 @@
+steps:
+  # Copy only ResNext50 model files into back-end directory
+  - name: 'ubuntu'
+    args: ['mkdir', '-p', 'back-end/models/ResNext50']
+  
+  - name: 'ubuntu'
+    args: ['cp', 'models/ResNext50/best_model_resnext50_rgbm.pth', 'back-end/models/ResNext50/']
+  
+  # Build the Docker image
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', '$_REGION-docker.pkg.dev/$PROJECT_ID/$_REPO_NAME/backend:latest', 'back-end']
+    dir: '.'
+  
+  # Push the Docker image to Artifact Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', '$_REGION-docker.pkg.dev/$PROJECT_ID/$_REPO_NAME/backend:latest']
+
+# Substitutions for variables
+substitutions:
+  _REGION: us-central1
+  _REPO_NAME: color-analysis-repo
+
+# Options
+options:
+  logging: CLOUD_LOGGING_ONLY
+  machineType: 'E2_HIGHCPU_8'
+
+# Timeout for the entire build
+timeout: 1800s
