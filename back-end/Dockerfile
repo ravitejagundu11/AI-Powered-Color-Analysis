@@ -21,8 +21,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY . .
 
-# Note: Model files should be copied from parent directory during cloud build
-# The model path will be set via environment variable
+# Copy only ResNext50 model files (expects models/ResNext50 to be in back-end/models during build)
+# This will be populated by cloudbuild.yaml copying from parent directory
+COPY models/ResNext50 /app/models/ResNext50
 
 # Expose port
 EXPOSE 8080

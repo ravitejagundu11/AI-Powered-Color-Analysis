@@ -1,7 +1,10 @@
 steps:
-  # Copy model files into back-end directory
+  # Copy only ResNext50 model files into back-end directory
   - name: 'ubuntu'
-    args: ['cp', '-r', 'models', 'back-end/']
+    args: ['mkdir', '-p', 'back-end/models/ResNext50']
+  
+  - name: 'ubuntu'
+    args: ['cp', 'models/ResNext50/best_model_resnext50_rgbm.pth', 'back-end/models/ResNext50/']
   
   # Build the Docker image
   - name: 'gcr.io/cloud-builders/docker'
@@ -11,33 +14,6 @@ steps:
   # Push the Docker image to Artifact Registry
   - name: 'gcr.io/cloud-builders/docker'
     args: ['push', '$_REGION-docker.pkg.dev/$PROJECT_ID/$_REPO_NAME/backend:latest']
-  
-  # Deploy to Cloud Run
-  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
-    entrypoint: gcloud
-    args:
-      - 'run'
-      - 'deploy'
-      - 'color-analysis-backend'
-      - '--image'
-      - '$_REGION-docker.pkg.dev/$PROJECT_ID/$_REPO_NAME/backend:latest'
-      - '--region'
-      - '$_REGION'
-      - '--platform'
-      - 'managed'
-      - '--allow-unauthenticated'
-      - '--memory'
-      - '2Gi'
-      - '--cpu'
-      - '2'
-      - '--timeout'
-      - '300'
-      - '--max-instances'
-      - '10'
-      - '--min-instances'
-      - '0'
-      - '--set-env-vars'
-      - 'MODEL_PATH=/app/models/ResNext50/best_model_resnext50_rgbm.pth'
 
 # Substitutions for variables
 substitutions:
