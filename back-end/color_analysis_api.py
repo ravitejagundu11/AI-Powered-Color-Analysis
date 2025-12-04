@@ -26,12 +26,15 @@ from pymongo import MongoClient
 from bson.objectid import ObjectId
 from rembg import remove
 from colorthief import ColorThief
+from dotenv import load_dotenv
+import os
 
 # Import our custom modules
 from color_recommendation_engine import ColorRecommendationEngineV2
 from face_masking_preprocessor import get_face_masking_preprocessor
 
-MONGO_URI = "mongodb+srv://divyaavutida_db_user:eqoCfxvryy9SWRBC@color-anlaysis.zznhd2u.mongodb.net/"
+load_dotenv()   # loads everything from .env
+MONGO_URI = os.getenv("MONGO_URI")
 client = MongoClient(MONGO_URI)
 db = client["color_analysis_db"]
 photos_collection = db["photos"]
