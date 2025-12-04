@@ -29,6 +29,29 @@ dist-ssr
 *.sln
 *.sw?
 
+# Environment files (keep .example files, ignore actual .env)
+.env
+.env.local
+.env.production
+.env.development
+front-end/Color-Analysis/.env.production
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+myenv/
+
+# Docker
+.dockerignore
+
+# Google Cloud
+.gcloud/
 # Python
 __pycache__/
 *.py[cod]

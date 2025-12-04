@@ -11,7 +11,10 @@ import { useCamera } from './hooks/useCamera';
 import { useCountdown } from './hooks/useCountdown';
 import { useFileUpload } from './hooks/useFileUpload';
 import { useImageAnalysis } from './hooks/useImageAnalysis';
-import { API_BASE_URL } from './constants';
+
+
+// API Configuration
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
 type InputMode = 'camera' | 'upload';
 
