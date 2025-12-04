@@ -9,12 +9,14 @@ lerna-debug.log*
 
 node_modules
 bin
-back-end/.venv/
-back-end/__pycache__/
-back-end/myenv/
 dist
 dist-ssr
 *.local
+
+# Environment variables
+.env
+.env.local
+.env.*.local
 
 # Editor directories and files
 .vscode/*
@@ -27,3 +29,22 @@ dist-ssr
 *.sln
 *.sw?
 
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv/
+.env/
+myenv/
+back-end/.venv/
+back-end/venv/
+back-end/env/
+back-end/myenv/
+back-end/__pycache__/
