@@ -20,12 +20,14 @@ export default function PreviewView({ image, onRetake, onAccept }: PreviewViewPr
         <button
           onClick={onRetake}
           className="bg-red-500 text-white rounded-full p-4 shadow-lg transition-transform transform active:scale-95 hover:bg-red-600"
+          aria-label="Retake photo"
         >
           <X size={32} />
         </button>
         <button
           onClick={onAccept}
           className="bg-green-500 text-white rounded-full p-4 shadow-lg transition-transform transform active:scale-95 hover:bg-green-600"
+          aria-label="Accept photo and continue"
         >
           <Check size={32} />
         </button>

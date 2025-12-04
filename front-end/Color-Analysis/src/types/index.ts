@@ -1,5 +1,5 @@
 // types.ts
-export type ViewState = 'camera' | 'preview' | 'processing' | 'result';
+export type ViewState = 'home' | 'select' | 'camera' | 'preview' | 'processing' | 'result';
 
 export interface IColor {
   name: string;

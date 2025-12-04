@@ -11,12 +11,14 @@ export default function PaletteGrid({ title, colors }: PaletteGridProps): JSX.El
     <div className="w-full mb-8">
       <h3 className="text-xl font-semibold mb-4 text-gray-700">{title}</h3>
       <div className="flex flex-wrap gap-4 justify-center md:justify-start">
-        {colors.map(color => (
-          <div key={color.hex} className="flex flex-col items-center group flex-shrink-0">
+        {colors.map((color, idx) => (
+          <div key={`${color.hex}-${idx}`} className="flex flex-col items-center group flex-shrink-0">
             <div
               className="w-16 h-16 rounded-lg shadow-sm border border-gray-300 transition-transform duration-150 group-hover:scale-110 cursor-pointer"
               style={{ backgroundColor: color.hex }}
               title={`${color.name} - ${color.hex}`}
+              role="img"
+              aria-label={`${color.name} color swatch`}
             ></div>
             <span className="text-xs text-gray-500 mt-2 font-medium uppercase tracking-wider">
               {color.hex}
