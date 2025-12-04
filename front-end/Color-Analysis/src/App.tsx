@@ -7,7 +7,7 @@ import type { ViewState, IColor } from './types';
 import Header from './components/Header';
 
 // API Configuration
-const API_BASE_URL = 'http://localhost:8000';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
 type InputMode = 'camera' | 'upload';
 
@@ -115,8 +115,6 @@ export default function App(): JSX.Element {
       context.restore();
 
       const imageData = canvas.toDataURL('image/png');
-      const placeholderImageData = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNTAwIiBoZWlnaHQ9IjUwMCIgdmlld0JveD0iMCAwIDUwMCA1MDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgZmlsbD0iIzQ3NWQ3YSI+CiAgPHJlY3Qgd2lkdGg9IjUwMCIgaGVpZ2h0PSI1MDAiIGZpbGw9IiM3Mzk2YjciPjwvcmVjdD4KICA8ZyB0cmFuc2Zvcm09InRyYW5zbGF0ZSgyNTAgMjUwKSI+CiAgICA8cGF0aCBkPSJNIDAgLTEyNSBDIDY5LjAgLTEyNSA4Ny41IC04Ny41IDg3LjUgLTYyLjUgQyA4Ny41IC0zNy41IDY5LjAgMCAwIDAgQyAtNjkuMCAwIC04Ny41IC0zNy41IC04Ny41IC02Mi41IEMgLTg3LjUgLTg3LjUgLTY5LjAgLTEyNSAwIC0xMjUgWiIgZmlsbD0iI2YxZmFlZSI+PC9wYXRoPgogICAgPGNpcmNsZSBjeD0iMCIgY3k9IjAiIHI9IjY1IiBmaWxsPSIjZjFmYWVlIj48L2NpcmNsZT4KICAgIDxyZWN0IHg9Ii0xMDAiIHk9IjM1IiB3aWR0aD0iMjAwIiBoZWlnaHQ9IjEwMCIgcng9IjUwIiByeT0iNTAiIGZpbGw9IiNmMWZhZWUiPjwvcmVjdD4KICA8L2c+Cjwvc3ZnPg==';
-      const finalImageData = (video.videoWidth > 0) ? imageData : placeholderImageData;
 
       setCapturedImage(imageData);
       setView('preview');
