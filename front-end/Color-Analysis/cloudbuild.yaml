@@ -1,59 +1,19 @@
 steps:
-  # Get backend URL for environment variable
-  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
-    entrypoint: 'bash'
-    args:
-      - '-c'
-      - |
-        BACKEND_URL=$(gcloud run services describe color-analysis-backend \
-          --region $_REGION \
-          --format 'value(status.url)' 2>/dev/null || echo "http://localhost:8000")
-        echo "VITE_API_BASE_URL=$BACKEND_URL" > .env.production
-    dir: 'front-end/Color-Analysis'
-  
   # Build the Docker image
   - name: 'gcr.io/cloud-builders/docker'
     args: ['build', '-t', '$_REGION-docker.pkg.dev/$PROJECT_ID/$_REPO_NAME/frontend:latest', '.']
     dir: 'front-end/Color-Analysis'
   
-  # Push the Docker image to Artifact Registry
+  # Push the Docker image
   - name: 'gcr.io/cloud-builders/docker'
     args: ['push', '$_REGION-docker.pkg.dev/$PROJECT_ID/$_REPO_NAME/frontend:latest']
-  
-  # Deploy to Cloud Run
-  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
-    entrypoint: gcloud
-    args:
-      - 'run'
-      - 'deploy'
-      - 'color-analysis-frontend'
-      - '--image'
-      - '$_REGION-docker.pkg.dev/$PROJECT_ID/$_REPO_NAME/frontend:latest'
-      - '--region'
-      - '$_REGION'
-      - '--platform'
-      - 'managed'
-      - '--allow-unauthenticated'
-      - '--memory'
-      - '512Mi'
-      - '--cpu'
-      - '1'
-      - '--timeout'
-      - '30'
-      - '--max-instances'
-      - '10'
-      - '--min-instances'
-      - '0'
 
-# Substitutions for variables
 substitutions:
   _REGION: us-central1
   _REPO_NAME: color-analysis-repo
 
-# Options
 options:
   logging: CLOUD_LOGGING_ONLY
   machineType: 'E2_HIGHCPU_8'
 
-# Timeout for the entire build
-timeout: 1200s
+timeout: 1800s

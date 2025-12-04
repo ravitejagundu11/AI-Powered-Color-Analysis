@@ -12,7 +12,11 @@ RUN npm install
 # Copy source code
 COPY . .
 
-# Build the application
+# Set the API URL as a build argument and environment variable
+ARG VITE_API_BASE_URL=http://35.226.154.58:8080
+ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
+
+# Build the application with production environment
 RUN npm run build
 
 # Stage 2: Production stage with nginx
