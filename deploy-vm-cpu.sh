@@ -114,12 +114,12 @@ echo "=== Setting up Python virtual environment ==="
 python3 -m venv venv
 source venv/bin/activate
 
-echo "=== Cloning private repository ==="
-if [ ! -d "AI-Powered-Color-Analysis" ]; then
+echo "=== Cloning private repository ===\"
+if [ ! -d \"AI-Powered-Color-Analysis\" ]; then
     git clone https://\${GITHUB_TOKEN}@github.com/ravitejagundu11/AI-Powered-Color-Analysis.git
 else
     cd AI-Powered-Color-Analysis
-    git pull origin depolyment || git pull origin main || git pull origin master || true
+    git pull origin main || git pull origin master || true
     cd ..
 fi
 

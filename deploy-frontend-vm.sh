@@ -6,7 +6,7 @@ VM_NAME="color-analysis-vm-cpu"
 ZONE="us-central1-a"
 PROJECT_ID="dl-color-analysis-app"
 GITHUB_REPO="https://github.com/ravitejagundu11/AI-Powered-Color-Analysis.git"
-BRANCH="depolyment"
+BRANCH="main"
 
 echo "🚀 Deploying frontend to VM..."
 

@@ -150,7 +150,7 @@ sudo systemctl restart nginx
 cd ~/color-analysis/AI-Powered-Color-Analysis
 
 # Pull latest changes
-git pull origin depolyment
+    git pull origin main
 
 # Rebuild frontend
 cd front-end/Color-Analysis
