@@ -28,37 +28,41 @@ This repository contains a full-stack application that analyzes facial skin tone
 - **Face masking** with facer library
 
 ### Deployment
-- **Google Cloud Run** (serverless containers)
-- **Docker** containerization
-- **Nginx** for frontend serving
-- **Artifact Registry** for image storage
+- **Google Compute Engine** (VM-based)
+- **Nginx** for reverse proxy and SSL/TLS
+- **Let's Encrypt** for SSL certificates
+- **Custom domain** with static IP
+- **Systemd** for service management
 
 ## 🚀 Deployment to Google Cloud
 
-### Quick Deploy (Recommended)
+### Production Deployment (VM)
 
 ```bash
-# 1. Install Google Cloud CLI
-brew install --cask google-cloud-sdk
+# 1. Configure Google Cloud credentials
+export GITHUB_PAT="your_github_personal_access_token"
 
-# 2. Login and setup project
-gcloud auth login
-export PROJECT_ID="color-analysis-app"
-gcloud projects create $PROJECT_ID
-gcloud config set project $PROJECT_ID
+# 2. Deploy backend
+./deploy-vm-cpu.sh
 
-# 3. Enable APIs
-gcloud services enable cloudbuild.googleapis.com run.googleapis.com artifactregistry.googleapis.com
+# 3. Deploy frontend
+./deploy-frontend-vm.sh
 
-# 4. Run deployment script
-./deploy.sh
+# 4. Configure custom domain with SSL
+./setup-domain.sh
 ```
 
 ### Documentation
 
-- **[GOOGLE_CLOUD_DEPLOYMENT.md](./GOOGLE_CLOUD_DEPLOYMENT.md)** - Complete deployment guide (14 pages)
-- **[DEPLOYMENT_QUICKSTART.md](./DEPLOYMENT_QUICKSTART.md)** - Quick reference and commands
-- **[DEPLOYMENT_SUMMARY.md](./DEPLOYMENT_SUMMARY.md)** - Overview of all changes and files
+- **[DEPLOYMENT.md](./DEPLOYMENT.md)** - Complete VM deployment guide
+- **[vm-manage.sh](./vm-manage.sh)** - VM management utilities
+- **[update-deployment.sh](./update-deployment.sh)** - Update deployed application
+
+### Live Application
+
+- **Website**: https://color-analysis.me
+- **API Docs**: https://color-analysis.me/docs
+- **Health Check**: https://color-analysis.me/health
 
 ## 💻 Local Development
 
@@ -141,10 +145,12 @@ AI-Powered-Color-Analysis/
 │   ├── DenseNet/                      # Alternative model
 │   ├── EfficientNetB0/                # Alternative model
 │   └── ResNet34/                      # Alternative model
-├── deploy.sh                          # Automated deployment script
-├── GOOGLE_CLOUD_DEPLOYMENT.md         # Complete deployment guide
-├── DEPLOYMENT_QUICKSTART.md           # Quick reference
-└── DEPLOYMENT_SUMMARY.md              # Changes summary
+├── deploy-vm-cpu.sh                   # Deploy backend to VM
+├── deploy-frontend-vm.sh              # Deploy frontend to VM
+├── setup-domain.sh                    # Configure domain & SSL
+├── update-deployment.sh               # Update running application
+├── vm-manage.sh                       # VM management utilities
+└── DEPLOYMENT.md                      # VM deployment documentation
 
 ```
 
@@ -195,15 +201,15 @@ Interactive API documentation (Swagger UI)
 
 ## 💰 Cost Estimates (Google Cloud)
 
-- **Development**: $0-5/month (free tier)
-- **Low Traffic**: $10-20/month
-- **Medium Traffic**: $30-50/month
-- **High Traffic**: $100+/month
+- **VM (e2-standard-4)**: ~$120/month (24/7 operation)
+- **Static IP**: ~$3-4/month
+- **SSL Certificate**: Free (Let's Encrypt)
+- **Total**: ~$125/month
 
-### Free Tier Includes:
-- 2 million requests/month
-- 360,000 GB-seconds memory
-- 180,000 vCPU-seconds
+### Cost Optimization:
+- Stop VM when not in use to reduce costs
+- Use smaller instance type for lower traffic
+- Static IP ensures no DNS changes on restart
 
 ## 🔒 Security
 
@@ -222,24 +228,32 @@ Interactive API documentation (Swagger UI)
 
 ## 🛠️ Troubleshooting
 
-### Backend Issues
+### VM Management
 ```bash
-# View logs
-gcloud run services logs read color-analysis-backend --limit 50
+# SSH into VM
+./vm-manage.sh ssh
 
-# Increase memory if needed
-gcloud run services update color-analysis-backend --memory 4Gi
+# View backend logs
+./vm-manage.sh logs
+
+# Check VM status
+./vm-manage.sh status
+
+# Stop/start VM
+./vm-manage.sh stop
+./vm-manage.sh start
 ```
 
-### Frontend Issues
+### Update Application
 ```bash
-# Rebuild with correct API URL
-cd front-end/Color-Analysis
-echo "VITE_API_BASE_URL=YOUR_BACKEND_URL" > .env.production
-npm run build
+# Push changes to GitHub
+git push origin main
+
+# Run update script
+./update-deployment.sh
 ```
 
-See [GOOGLE_CLOUD_DEPLOYMENT.md](./GOOGLE_CLOUD_DEPLOYMENT.md) for detailed troubleshooting.
+See [DEPLOYMENT.md](./DEPLOYMENT.md) for detailed troubleshooting.
 
 ## 🤝 Contributing
 
@@ -264,9 +278,9 @@ See LICENSE file for details.
 ## 📞 Support
 
 For deployment help, see:
-- [Complete Deployment Guide](./GOOGLE_CLOUD_DEPLOYMENT.md)
-- [Quick Start Guide](./DEPLOYMENT_QUICKSTART.md)
-- [Google Cloud Run Docs](https://cloud.google.com/run/docs)
+- [VM Deployment Guide](./DEPLOYMENT.md)
+- [VM Management Script](./vm-manage.sh)
+- [Google Compute Engine Docs](https://cloud.google.com/compute/docs)
 
 ---
 

@@ -13,7 +13,7 @@ RUN npm install
 COPY . .
 
 # Set the API URL as a build argument and environment variable
-ARG VITE_API_BASE_URL=http://35.226.154.58:8080
+ARG VITE_API_BASE_URL=https://color-analysis.me
 ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
 
 # Build the application with production environment

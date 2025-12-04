@@ -39,8 +39,8 @@ fi
 # Navigate to frontend directory
 cd "$REPO_DIR/front-end/Color-Analysis"
 echo "🏗️  Building frontend..."
-VITE_API_BASE_URL=http://35.226.154.58:8080 npm install
-VITE_API_BASE_URL=http://35.226.154.58:8080 npm run build
+VITE_API_BASE_URL=https://color-analysis.me npm install
+VITE_API_BASE_URL=https://color-analysis.me npm run build
 
 # Copy built files to nginx directory
 echo "📋 Copying files to nginx..."

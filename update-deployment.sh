@@ -33,7 +33,7 @@ sleep 5
 
 echo "🏗️  Rebuilding frontend..."
 cd ~/color-analysis/AI-Powered-Color-Analysis/front-end/Color-Analysis
-VITE_API_BASE_URL=http://35.226.154.58:8080 npm run build
+VITE_API_BASE_URL=https://color-analysis.me npm run build
 
 echo "📋 Deploying frontend to Nginx..."
 sudo rm -rf /var/www/html/*
@@ -48,8 +48,8 @@ echo "🔍 Checking backend health..."
 curl -s http://localhost:8080/health | python3 -m json.tool || echo "Backend starting up..."
 
 echo ""
-echo "🌐 Frontend: http://35.226.154.58"
-echo "🔧 Backend: http://35.226.154.58:8080"
+echo "🌐 Frontend: https://color-analysis.me"
+echo "🔧 Backend: https://color-analysis.me (proxied)"
 VMSCRIPT
 
 # Upload and execute script on VM
@@ -69,4 +69,4 @@ rm /tmp/update-deployment.sh
 
 echo ""
 echo "✅ Update complete!"
-echo "🌐 Test your app at: http://35.226.154.58"
+echo "🌐 Test your app at: https://color-analysis.me"

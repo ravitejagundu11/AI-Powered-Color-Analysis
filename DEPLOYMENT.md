@@ -5,8 +5,11 @@ This guide covers the complete deployment of the AI-Powered Color Analysis appli
 ## Architecture
 
 - **VM Instance**: Google Compute Engine (e2-standard-4, CPU-only)
-- **Backend**: FastAPI with PyTorch ResNext50 model (port 8080)
-- **Frontend**: React + Vite served by Nginx (port 80)
+- **Static IP**: 35.222.13.151 (reserved, won't change on restart)
+- **Domain**: color-analysis.me with SSL/TLS (Let's Encrypt)
+- **Backend**: FastAPI with PyTorch ResNext50 model (localhost:8080, not publicly accessible)
+- **Frontend**: React + Vite served by Nginx (ports 80/443)
+- **Web Server**: Nginx with reverse proxy and SSL termination
 - **Model**: ResNext50 trained for seasonal color analysis
 
 ## Prerequisites
@@ -50,15 +53,41 @@ After backend is running, deploy the frontend:
 
 **What it does:**
 - Installs Nginx and Node.js 20
-- Builds React frontend with correct API URL
+- Builds React frontend with domain URL (https://color-analysis.me)
 - Configures Nginx to serve frontend on port 80
-- Sets up reverse proxy for `/api` and `/health` endpoints
+- Sets up reverse proxy for API endpoints
+
+### 3. Configure Domain and SSL
+
+After frontend is deployed, set up custom domain with SSL:
+
+```bash
+./setup-domain.sh
+```
+
+**What it does:**
+- Verifies DNS configuration
+- Installs Certbot for Let's Encrypt
+- Obtains SSL/TLS certificates
+- Configures Nginx for HTTPS with reverse proxy
+- Rebuilds frontend with HTTPS domain URL
+- Sets up automatic certificate renewal
+
+**Prerequisites:** DNS A record must point color-analysis.me to VM IP
 
 ## Access URLs
 
-- **Frontend**: http://35.226.154.58
-- **Backend API**: http://35.226.154.58:8080
-- **Health Check**: http://35.226.154.58:8080/health
+- **Production (HTTPS)**:
+  - Frontend: https://color-analysis.me
+  - API Documentation: https://color-analysis.me/docs
+  - Health Check: https://color-analysis.me/health
+  - Backend API: https://color-analysis.me/analyze-color
+
+- **VM Direct Access**:
+  - HTTP: http://35.222.13.151 (redirects to HTTPS)
+  - Backend: localhost:8080 only (not publicly accessible for security)
+
+**Note:** Backend port 8080 is blocked externally and only accessible through Nginx reverse proxy.
 
 ## VM Management
 
@@ -84,6 +113,27 @@ Use the `vm-manage.sh` script for common operations:
 ./vm-manage.sh ip
 ```
 
+## Update Deployed Application
+
+To deploy code changes:
+
+```bash
+# 1. Commit and push changes to GitHub
+git add .
+git commit -m "Your changes"
+git push origin main
+
+# 2. Run update script (pulls code, rebuilds, restarts services)
+./update-deployment.sh
+```
+
+**What update-deployment.sh does:**
+- Pulls latest code from GitHub
+- Restarts backend service
+- Rebuilds frontend with production API URL
+- Reloads Nginx
+- Verifies deployment
+
 ## Configuration Files
 
 ### Backend
@@ -97,17 +147,36 @@ Use the `vm-manage.sh` script for common operations:
 
 ## Firewall Rules
 
-Required firewall rules (automatically created):
-- Port 80: Frontend access
-- Port 8080: Backend API access
+Required firewall rules:
+- **Port 80** (HTTP): Redirects to HTTPS
+- **Port 443** (HTTPS): Secure frontend and API access
+- **Port 8080** (Backend): BLOCKED externally, only accessible via localhost for security
+
+Firewall configuration:
+```bash
+# View current rules
+gcloud compute firewall-rules list --project=dl-color-analysis-app
+
+# Rules created:
+# - default-allow-http (port 80)
+# - allow-https (port 443)
+# - Backend port 8080 NOT exposed (security hardening)
+```
 
 ## Cost Estimation
 
-**e2-standard-4 VM (4 vCPU, 16GB RAM):**
-- Running 24/7: ~$120/month
-- Running 8 hours/day: ~$40/month
+**Monthly Costs:**
+- **e2-standard-4 VM** (4 vCPU, 16GB RAM):
+  - Running 24/7: ~$120/month
+  - Running 8 hours/day: ~$40/month
+- **Static IP**: ~$3-4/month (reserved, prevents IP changes)
+- **SSL Certificate**: Free (Let's Encrypt)
+- **Total (24/7)**: ~$125/month
 
-**Tip:** Stop the VM when not in use with `./vm-manage.sh stop`
+**Cost Optimization:**
+- Stop VM when not in use: `./vm-manage.sh stop`
+- Static IP ensures same IP when restarting (no DNS changes needed)
+- VM restarts are fast (~1 minute)
 
 ## Troubleshooting
 
@@ -141,32 +210,55 @@ sudo tail -f /var/log/nginx/error.log
 sudo systemctl restart nginx
 ```
 
-### Update frontend code
+### Update code manually
 ```bash
-# SSH into VM
+# Option 1: Use update script (recommended)
+./update-deployment.sh
+
+# Option 2: Manual update on VM
 ./vm-manage.sh ssh
 
-# Navigate to repo
 cd ~/color-analysis/AI-Powered-Color-Analysis
+git pull origin main
 
-# Pull latest changes
-    git pull origin main
+# Restart backend
+sudo systemctl restart color-analysis
 
 # Rebuild frontend
 cd front-end/Color-Analysis
-VITE_API_BASE_URL=http://35.226.154.58:8080 npm run build
+VITE_API_BASE_URL=https://color-analysis.me npm run build
 
 # Deploy to Nginx
 sudo rm -rf /var/www/html/*
 sudo cp -r dist/* /var/www/html/
+sudo systemctl reload nginx
 ```
 
 ## Security Notes
 
-1. The application uses HTTP (not HTTPS) - suitable for testing
-2. For production, consider adding SSL/TLS certificates
-3. VM has public IP - restrict firewall rules if needed
-4. GitHub token is stored in VM metadata during deployment
+1. **HTTPS Enabled**: SSL/TLS certificates from Let's Encrypt with auto-renewal
+2. **Backend Protected**: Port 8080 blocked externally, only accessible via Nginx reverse proxy
+3. **Static IP**: Reserved IP prevents DNS issues on VM restart
+4. **Certificate Renewal**: Automatic via Certbot systemd timer (every 90 days)
+5. **GitHub Token**: Stored in VM metadata during deployment (remove if needed)
+6. **Nginx Security**: Configured with proper headers and reverse proxy rules
+
+### SSL Certificate Renewal
+
+Certificates auto-renew via Certbot. To manually renew:
+
+```bash
+./vm-manage.sh ssh
+sudo certbot renew
+sudo systemctl reload nginx
+```
+
+### DNS Configuration
+
+Domain: color-analysis.me
+- **A Record**: @ → 35.222.13.151
+- **TTL**: 300 seconds (for faster propagation)
+- **Registrar**: Namecheap
 
 ## Model Information
 
