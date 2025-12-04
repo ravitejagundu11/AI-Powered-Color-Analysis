@@ -13,6 +13,8 @@ import torch.nn as nn
 import numpy as np
 from PIL import Image
 
+
+
 from fastapi import FastAPI, UploadFile, File, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -20,10 +22,19 @@ from pydantic import BaseModel, Field
 from torchvision import transforms
 from torchvision.models import resnext50_32x4d, ResNeXt50_32X4D_Weights
 from constants import MODEL_PATH, COLOR_PALETTE_PATH
+from pymongo import MongoClient
+from bson.objectid import ObjectId
+from rembg import remove
+from colorthief import ColorThief
 
 # Import our custom modules
 from color_recommendation_engine import ColorRecommendationEngineV2
 from face_masking_preprocessor import get_face_masking_preprocessor
+
+MONGO_URI = "mongodb+srv://divyaavutida_db_user:eqoCfxvryy9SWRBC@color-anlaysis.zznhd2u.mongodb.net/"
+client = MongoClient(MONGO_URI)
+db = client["color_analysis_db"]
+photos_collection = db["photos"]
 
 
 # Initialize the FastAPI application
@@ -445,3 +456,94 @@ async def root():
             "Personalized color recommendations",
         ]
     }
+
+
+def extract_colors_with_percentage(image_bytes: bytes, color_count: int = 5) -> Dict[str, Dict[str, Any]]:
+    """
+    Extracts dominant colors and estimates percentage for each one.
+    Returns:
+        {
+            "1": {"color": "#rrggbb", "percentage": int},
+            "2": {"color": "#rrggbb", "percentage": int},
+            ...
+        }
+    """
+
+    # Load image
+    img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+    img_small = img.resize((150, 150))   # shrink for faster pixel stats
+    pixels = np.array(img_small).reshape(-1, 3)
+
+    # Use ColorThief for palette
+    ct = ColorThief(io.BytesIO(image_bytes))
+    palette = ct.get_palette(color_count=color_count)
+
+    # For each palette color → percentage of closest pixels
+    percentages = []
+    for color in palette:
+        diff = np.linalg.norm(pixels - np.array(color), axis=1)
+        closest = diff <= np.min(diff) + 25   # tolerance so clusters aren't too tiny
+        pct = int((np.sum(closest) / len(pixels)) * 100)
+        percentages.append(pct)
+
+    # Normalize to sum=100 (rounding safety)
+    total = sum(percentages)
+    if total > 0:
+        percentages = [int((p / total) * 100) for p in percentages]
+
+    # Build required JSON structure
+    result = {}
+    for i, (rgb, pct) in enumerate(zip(palette, percentages), start=1):
+        hex_color = "#{:02x}{:02x}{:02x}".format(*rgb)
+        result[str(i)] = {
+            "color": hex_color,
+            "percentage": pct
+        }
+
+    return result
+
+
+
+def save_photo_data(photo_url: str, colors_sorted: list, is_available: bool, gender: str):
+    doc = {
+        "photo_url": photo_url,
+        "colors_sorted": colors_sorted,
+        "is_available": is_available,
+        "gender": gender
+    }
+    result = photos_collection.insert_one(doc)
+    return str(result.inserted_id)
+
+@app.post("/upload-image-process-store")
+async def upload_image_process_store(
+    image: UploadFile = File(...),
+    gender: str = "female",
+    is_available: bool = True
+):
+    try:
+        img_bytes = await image.read()
+        if len(img_bytes) == 0:
+            raise HTTPException(status_code=400, detail="Empty image file")
+
+        # Remove background
+        bg_removed_bytes = remove(img_bytes)
+
+        # Extract colors WITH percentage
+        color_json = extract_colors_with_percentage(bg_removed_bytes)
+
+        # Save to DB
+        doc_id = save_photo_data(
+            photo_url="uploaded_via_api",
+            colors_sorted=color_json,
+            is_available=is_available,
+            gender=gender
+        )
+
+        return {
+            "status": "success",
+            "document_id": doc_id,
+            "colors": color_json
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
