@@ -40,7 +40,7 @@ from face_masking_preprocessor import get_face_masking_preprocessor
 load_dotenv()   # loads everything from .env
 MONGO_URI = os.getenv("MONGO_URI")
 client = MongoClient(MONGO_URI)
-db = client["color_analysis_db"]
+db = client["color_analysis"]
 photos_collection = db["photos"]
 
 
