@@ -28,6 +28,10 @@ from rembg import remove
 from colorthief import ColorThief
 from dotenv import load_dotenv
 import os
+import gridfs
+import base64
+
+
 
 # Import our custom modules
 from color_recommendation_engine import ColorRecommendationEngineV2
@@ -552,3 +556,70 @@ async def upload_image_process_store(
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+
+fs = gridfs.GridFS(db)
+@app.get("/get-image-by-docid")
+async def get_image_by_docid(doc_id: str = Query(..., description="MongoDB document _id")):
+    """
+    Returns the image stored in GridFS for the given document _id.
+    The frontend can display it directly with an <img> tag.
+    """
+    try:
+        # Convert string to ObjectId
+        try:
+            object_id = ObjectId(doc_id)
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid document _id format")
+
+        # Fetch the document
+        doc = photos_collection.find_one({"_id": object_id})
+        if not doc or "image_gridfs" not in doc:
+            raise HTTPException(status_code=404, detail="Document not found or no image in GridFS")
+
+        # Fetch the image from GridFS
+        file_id = doc["image_gridfs"]
+        grid_out = fs.get(file_id)
+        image_bytes = grid_out.read()
+
+        # Stream the image
+        return StreamingResponse(io.BytesIO(image_bytes), media_type="image/jpeg")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+
+@app.get("/get-image-from-base64")
+async def get_image_from_base64(doc_id: str = Query(..., description="MongoDB document _id")):
+    """
+    Returns the image stored in the `image_base64` column for the given document _id.
+    The frontend can display it directly with an <img> tag.
+    """
+    try:
+        # Convert string to ObjectId
+        try:
+            object_id = ObjectId(doc_id)
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid document _id format")
+
+        # Fetch the document
+        doc = photos_collection.find_one({"_id": object_id})
+        if not doc or "image_base64" not in doc:
+            raise HTTPException(status_code=404, detail="Document not found or no Base64 image")
+
+        # Decode the Base64 string
+        try:
+            image_bytes = base64.b64decode(doc["image_base64"])
+        except Exception:
+            raise HTTPException(status_code=500, detail="Failed to decode Base64 image")
+
+        # Stream the image
+        return StreamingResponse(io.BytesIO(image_bytes), media_type="image/jpeg")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
