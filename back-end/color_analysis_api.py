@@ -358,9 +358,9 @@ async def analyze_color_endpoint(
         # Analyze the image (image is discarded here)
         season, confidence, all_probs, _, masking_applied, _ = analyze_image_tone(image_bytes, apply_face_masking)
         
-        # Get palette from color engine
+        # Get palette from color engine using weighted method for personalization
         if COLOR_ENGINE:
-            palette_data = COLOR_ENGINE.get_palette_for_season(season)
+            palette_data = COLOR_ENGINE.get_weighted_palette_for_probabilities(all_probs)
         else:
             raise HTTPException(status_code=503, detail="Color Engine not initialized")
         
