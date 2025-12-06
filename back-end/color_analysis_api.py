@@ -43,6 +43,10 @@ client = MongoClient(MONGO_URI)
 db = client["color_analysis"]
 photos_collection = db["photos"]
 
+# DB references
+color_similarity_collection = db["color_similarity"]
+
+
 
 # Initialize the FastAPI application
 app = FastAPI(
@@ -623,3 +627,99 @@ async def get_image_from_base64(doc_id: str = Query(..., description="MongoDB do
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+    
+from fastapi import APIRouter
+
+router = APIRouter()
+
+
+def _normalize_hex(value: Any) -> str:
+    """
+    Normalize hex strings to a consistent format: '#rrggbb' lowercase.
+    Handles:
+      - None
+      - strings with/without '#'
+      - strings with spaces
+    """
+    if value is None:
+        return ""
+    s = str(value).strip()
+    if not s:
+        return ""
+    if s.startswith("#"):
+        s = s[1:]
+    # some safety: keep only first 6 chars
+    s = s[:6]
+    return f"#{s.lower()}"
+
+def serialize_mongo_doc(doc):
+    doc = dict(doc)  # make a copy
+    for k, v in doc.items():
+        if isinstance(v, ObjectId):
+            doc[k] = str(v)
+    return doc
+
+@app.post("/get-matching-clothes")
+async def get_matching_clothes(primary_colors: List[str]):
+    """
+    Accepts RAW LIST input:
+        ["#808000", "#123456"]
+
+    Returns READY image URLs:
+        {
+            "matched_count": 8,
+            "images": [
+                "http://localhost:8000/get-image-by-docid?doc_id=6931c6f7cd874aa7be0f026a",
+                "http://localhost:8000/get-image-by-docid?doc_id=6931c81ccd874aa7be0f028c",
+                ...
+            ]
+        }
+    """
+
+    try:
+        similar_set = set()
+
+        # --- STEP 1: Load similar colors ---
+        for color in primary_colors:
+            norm_color = _normalize_hex(color)
+
+            doc = (
+                color_similarity_collection.find_one({"primary_color": color})
+                or color_similarity_collection.find_one({"primary_color": norm_color})
+                or color_similarity_collection.find_one({"primary_color": color.lower()})
+            )
+
+            if doc and "similar_colors" in doc:
+                for similar in doc["similar_colors"]:
+                    raw_hex = similar.get("hex") if isinstance(similar, dict) else similar
+                    similar_set.add(_normalize_hex(raw_hex))
+
+        all_similar_colors = sorted(similar_set)
+
+        # --- STEP 2: Find matching clothes ---
+        image_urls = []
+        BASE_URL = "http://localhost:8000"  # ← CHANGE THIS IN PRODUCTION
+
+        for cloth in photos_collection.find():
+            raw_top2 = cloth.get("top2_colors")
+            if not raw_top2:
+                continue
+
+            normalized = [
+                _normalize_hex(x) if isinstance(x, str)
+                else _normalize_hex(x.get("hex"))
+                for x in raw_top2
+            ]
+
+            if any(c in all_similar_colors for c in normalized):
+                # Build image URL
+                image_url = f"{BASE_URL}/get-image-by-docid?doc_id={cloth['_id']}"
+                image_urls.append(image_url)
+
+        return {
+            "matched_count": len(image_urls),
+            "images": image_urls
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
