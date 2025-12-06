@@ -660,7 +660,10 @@ def serialize_mongo_doc(doc):
     return doc
 
 @app.post("/get-matching-clothes")
-async def get_matching_clothes(primary_colors: List[str]):
+async def get_matching_clothes(
+    primary_colors: List[str],
+    gender: Optional[str] = Query(None)
+):
     """
     Accepts RAW LIST input:
         ["#808000", "#123456"]
@@ -700,7 +703,11 @@ async def get_matching_clothes(primary_colors: List[str]):
         image_urls = []
         BASE_URL = "http://localhost:8000"  # ← CHANGE THIS IN PRODUCTION
 
-        for cloth in photos_collection.find():
+        query = {}
+        if gender:
+            query["gender"] = gender.lower()
+
+        for cloth in photos_collection.find(query):
             raw_top2 = cloth.get("top2_colors")
             if not raw_top2:
                 continue
