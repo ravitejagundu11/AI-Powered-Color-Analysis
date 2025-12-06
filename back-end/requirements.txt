@@ -5,4 +5,8 @@ pillow==10.1.0
 fastapi==0.104.1
 uvicorn[standard]==0.24.0
 python-multipart==0.0.6
+pymongo==4.10.1
+python-dotenv==1.0.0
+rembg==2.0.59
+colorthief==0.2.1
 git+https://github.com/FacePerceiver/facer.git@main
