@@ -2,6 +2,7 @@ import type { JSX } from 'react';
 import { useState, useEffect, useMemo } from 'react';
 import type { IColor } from '../types';
 import { SEASON_DESCRIPTIONS, getConfidenceLevel, CONFIDENCE_DESCRIPTION } from '../constants/seasonDescriptions';
+import { API_BASE_URL } from '../constants';
 
 interface ResultViewProps {
   image: string;
@@ -41,7 +42,7 @@ export default function ResultView({
 
         console.log("Fetching outfits for:", primaryHexColors);
 
-        const response = await fetch("http://localhost:8000/get-matching-clothes", {
+        const response = await fetch(`${API_BASE_URL}/get-matching-clothes`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(primaryHexColors)
