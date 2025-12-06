@@ -15,13 +15,14 @@ from PIL import Image
 
 
 
+
 from fastapi import FastAPI, UploadFile, File, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 from torchvision import transforms
 from torchvision.models import resnext50_32x4d, ResNeXt50_32X4D_Weights
-from constants import MODEL_PATH, COLOR_PALETTE_PATH
+from constants import MODEL_PATH, COLOR_PALETTE_PATH, API_BASE_URL
 from pymongo import MongoClient
 from bson.objectid import ObjectId
 from rembg import remove
@@ -36,6 +37,7 @@ import base64
 # Import our custom modules
 from color_recommendation_engine import ColorRecommendationEngineV2
 from face_masking_preprocessor import get_face_masking_preprocessor
+
 
 load_dotenv()   # loads everything from .env
 MONGO_URI = os.getenv("MONGO_URI")
@@ -701,7 +703,6 @@ async def get_matching_clothes(
 
         # --- STEP 2: Find matching clothes ---
         image_urls = []
-        BASE_URL = "http://localhost:8000"  # ← CHANGE THIS IN PRODUCTION
 
         query = {}
         if gender:
@@ -720,7 +721,7 @@ async def get_matching_clothes(
 
             if any(c in all_similar_colors for c in normalized):
                 # Build image URL
-                image_url = f"{BASE_URL}/get-image-by-docid?doc_id={cloth['_id']}"
+                image_url = f"{API_BASE_URL}/get-image-by-docid?doc_id={cloth['_id']}"
                 image_urls.append(image_url)
 
         return {
