@@ -17,16 +17,13 @@ echo "📥 Pulling latest code..."
 cd ~/color-analysis/AI-Powered-Color-Analysis
 git pull origin main
 
-echo "🔄 Restarting backend..."
-# Kill existing backend process
-pkill -f "python.*color_analysis_api.py" || true
-sleep 2
-
-# Start backend in background
+echo "📦 Installing/updating dependencies..."
 cd ~/color-analysis
 source venv/bin/activate
-cd AI-Powered-Color-Analysis/back-end
-nohup python color_analysis_api.py > ~/backend.log 2>&1 &
+pip install -r AI-Powered-Color-Analysis/back-end/requirements.txt
+
+echo "🔄 Restarting backend..."
+sudo systemctl restart color-analysis
 
 echo "⏳ Waiting for backend to start..."
 sleep 5
