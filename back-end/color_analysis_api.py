@@ -22,7 +22,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 from torchvision import transforms
 from torchvision.models import resnext50_32x4d, ResNeXt50_32X4D_Weights
-from constants import MODEL_PATH, COLOR_PALETTE_PATH, API_BASE_URL
+from constants import MODEL_PATH, COLOR_PALETTE_PATH
 from pymongo import MongoClient
 from bson.objectid import ObjectId
 from rembg import remove
@@ -38,7 +38,7 @@ import base64
 from color_recommendation_engine import ColorRecommendationEngineV2
 from face_masking_preprocessor import get_face_masking_preprocessor
 
-
+API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000")
 load_dotenv()   # loads everything from .env
 MONGO_URI = os.getenv("MONGO_URI")
 client = MongoClient(MONGO_URI)
