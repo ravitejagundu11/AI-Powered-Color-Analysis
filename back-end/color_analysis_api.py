@@ -38,8 +38,8 @@ import base64
 from color_recommendation_engine import ColorRecommendationEngineV2
 from face_masking_preprocessor import get_face_masking_preprocessor
 
+load_dotenv()   # loads everything from .env - MUST be called before reading env vars
 API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000")
-load_dotenv()   # loads everything from .env
 MONGO_URI = os.getenv("MONGO_URI")
 client = MongoClient(MONGO_URI)
 db = client["color_analysis"]
@@ -260,26 +260,29 @@ def _process_image_for_model(image_data: bytes, apply_face_masking: bool = True)
     try:
         pil_image = Image.open(io.BytesIO(image_data))
         if pil_image.mode != 'RGB':
+            logging.info(f"Converting image from {pil_image.mode} to RGB")
             pil_image = pil_image.convert('RGB')
+        logging.info(f"Image loaded successfully: {pil_image.size}")
     except Exception as e:
+        logging.error(f"Failed to load image: {str(e)}")
         raise HTTPException(status_code=400, detail=f"Invalid image file: {str(e)}")
 
     # Apply face masking if enabled and preprocessor is available
     if apply_face_masking and FACE_PREPROCESSOR is not None:
         try:
-            print("Applying face masking preprocessing...")
+            logging.info("Applying face masking preprocessing...")
             # FACE_PREPROCESSOR.process_image returns the masked/cropped PIL image at IMG_SIZE
             processed_pil_image, _ = FACE_PREPROCESSOR.process_image(image_data, output_size=IMG_SIZE)
             masking_applied = True
-            print("Face masking applied successfully")
+            logging.info("Face masking applied successfully")
             return processed_pil_image, masking_applied
         except Exception as e:
             # Fall back to resized original image on failure
-            print(f"Face masking failed: {e}, using resized original image")
+            logging.warning(f"Face masking failed: {str(e)}, using resized original image")
             # Fall through to standard resizing
     
     # Standard resize if masking is disabled, preprocessor failed to load, or masking failed
-    print("Resizing original image to model input size.")
+    logging.info("Resizing original image to model input size.")
     processed_pil_image = pil_image.resize(IMG_SIZE, Image.Resampling.LANCZOS)
     
     return processed_pil_image, masking_applied
@@ -350,24 +353,36 @@ async def analyze_color_endpoint(
 ) -> AnalysisResult:
     """Basic color analysis endpoint with optional face masking"""
     try:
+        logging.info(f"Received image for analysis: {image.filename}, content_type: {image.content_type}")
+        
         if image.content_type and not image.content_type.startswith('image/'):
+            logging.error(f"Invalid content type: {image.content_type}")
             raise HTTPException(status_code=400, detail="File must be an image")
         
         image_bytes = await image.read()
         
-        if len(image_bytes) > 5 * 1024 * 1024:
-            raise HTTPException(status_code=413, detail="File too large. Max 5MB allowed.")
+        max_size = 10 * 1024 * 1024  # 10MB
+        if len(image_bytes) > max_size:
+            file_size_mb = len(image_bytes) / (1024 * 1024)
+            logging.error(f"File too large: {file_size_mb:.2f}MB (max 10MB)")
+            raise HTTPException(status_code=413, detail=f"File too large ({file_size_mb:.2f}MB). Maximum size is 10MB. Please compress your image.")
         
         if len(image_bytes) == 0:
+            logging.error("Empty file uploaded")
             raise HTTPException(status_code=400, detail="Empty file uploaded")
+        
+        logging.info(f"Image size: {len(image_bytes)} bytes, starting analysis...")
         
         # Analyze the image (image is discarded here)
         season, confidence, all_probs, _, masking_applied, _ = analyze_image_tone(image_bytes, apply_face_masking)
+        
+        logging.info(f"Analysis complete: {season} ({confidence:.2%})")
         
         # Get palette from color engine using weighted method for personalization
         if COLOR_ENGINE:
             palette_data = COLOR_ENGINE.get_weighted_palette_for_probabilities(all_probs)
         else:
+            logging.error("Color Engine not initialized")
             raise HTTPException(status_code=503, detail="Color Engine not initialized")
         
         result = AnalysisResult(
@@ -387,9 +402,7 @@ async def analyze_color_endpoint(
     except HTTPException:
         raise
     except Exception as e:
-        import traceback
-        print(f"Error in analyze_color_endpoint: {e}")
-        traceback.print_exc()
+        logging.error(f"Error in analyze_color_endpoint: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
 
 
@@ -410,8 +423,10 @@ async def analyze_debug_masked_image_endpoint(
         
         image_bytes = await image.read()
         
-        if len(image_bytes) > 5 * 1024 * 1024:
-            raise HTTPException(status_code=413, detail="File too large. Max 5MB allowed.")
+        max_size = 10 * 1024 * 1024  # 10MB
+        if len(image_bytes) > max_size:
+            file_size_mb = len(image_bytes) / (1024 * 1024)
+            raise HTTPException(status_code=413, detail=f"File too large ({file_size_mb:.2f}MB). Maximum size is 10MB. Please compress your image.")
         
         if len(image_bytes) == 0:
             raise HTTPException(status_code=400, detail="Empty file uploaded")

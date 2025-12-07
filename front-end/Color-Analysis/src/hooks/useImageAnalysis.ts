@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import { API_BASE_URL } from '../constants';
-import type { ApiAnalysisResponse, ApiErrorResponse } from '../types/api';
+import type { ApiAnalysisResponse } from '../types/api';
 import type { IColor } from '../types';
 
 export interface AnalysisResult {
@@ -47,10 +47,14 @@ export function useImageAnalysis(): UseImageAnalysisReturn {
             });
 
             if (!response.ok) {
-                const errorData: ApiErrorResponse = await response.json().catch(() => ({
-                    detail: 'Unknown error'
-                }));
-                throw new Error(errorData.detail || `API error: ${response.status}`);
+                let errorMessage = 'Server error while processing your image. Please try again or use a different image.';
+                
+                // Handle specific HTTP status codes with user-friendly messages
+                if (response.status === 413) {
+                    errorMessage = 'Image file is too large. Please use an image smaller than 10MB or compress your image before uploading.';
+                }
+                
+                throw new Error(errorMessage);
             }
 
             const apiResponse: ApiAnalysisResponse = await response.json();
