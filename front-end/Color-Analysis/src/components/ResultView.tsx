@@ -167,25 +167,7 @@ export default function ResultView({
         {/* SECTION 3: MATCHING OUTFITS */}
         {/* ------------------------------ */}
         <div className="bg-white p-4">
-          {/* <h2 className="text-2xl font-bold mb-2">Recommended Outfits</h2>
-          <p className="text-gray-600 mb-6">
-            Clothes from the Career Closet that match your personal color palette.
-          </p> */}
-
-          {/* ✅ GENDER FILTER */}
-          {/* <div className="flex gap-6 mb-6 items-center">
-            {["all", "female", "male"].map((g) => (
-              <label key={g} className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="radio"
-                  value={g}
-                  checked={selectedGender === g}
-                  onChange={() => setSelectedGender(g as any)}
-                />
-                {g.charAt(0).toUpperCase() + g.slice(1)}
-              </label>
-            ))}
-          </div> */}
+          
           <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
 
             {/* Left Text */}
