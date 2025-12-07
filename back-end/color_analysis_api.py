@@ -15,6 +15,7 @@ from PIL import Image
 
 
 
+
 from fastapi import FastAPI, UploadFile, File, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -37,6 +38,7 @@ import base64
 from color_recommendation_engine import ColorRecommendationEngineV2
 from face_masking_preprocessor import get_face_masking_preprocessor
 
+API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000")
 load_dotenv()   # loads everything from .env
 MONGO_URI = os.getenv("MONGO_URI")
 client = MongoClient(MONGO_URI)
@@ -660,7 +662,10 @@ def serialize_mongo_doc(doc):
     return doc
 
 @app.post("/get-matching-clothes")
-async def get_matching_clothes(primary_colors: List[str]):
+async def get_matching_clothes(
+    primary_colors: List[str],
+    gender: Optional[str] = Query(None)
+):
     """
     Accepts RAW LIST input:
         ["#808000", "#123456"]
@@ -698,9 +703,12 @@ async def get_matching_clothes(primary_colors: List[str]):
 
         # --- STEP 2: Find matching clothes ---
         image_urls = []
-        BASE_URL = "http://localhost:8000"  # ← CHANGE THIS IN PRODUCTION
 
-        for cloth in photos_collection.find():
+        query = {}
+        if gender:
+            query["gender"] = gender.lower()
+
+        for cloth in photos_collection.find(query):
             raw_top2 = cloth.get("top2_colors")
             if not raw_top2:
                 continue
@@ -713,7 +721,7 @@ async def get_matching_clothes(primary_colors: List[str]):
 
             if any(c in all_similar_colors for c in normalized):
                 # Build image URL
-                image_url = f"{BASE_URL}/get-image-by-docid?doc_id={cloth['_id']}"
+                image_url = f"{API_BASE_URL}/get-image-by-docid?doc_id={cloth['_id']}"
                 image_urls.append(image_url)
 
         return {
