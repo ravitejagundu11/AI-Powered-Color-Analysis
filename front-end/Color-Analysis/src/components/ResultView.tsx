@@ -3,6 +3,8 @@ import { useState, useEffect, useMemo } from 'react';
 import type { IColor } from '../types';
 import { SEASON_DESCRIPTIONS, getConfidenceLevel, CONFIDENCE_DESCRIPTION } from '../constants/seasonDescriptions';
 import { API_BASE_URL } from '../constants';
+import { LazyImage } from './LazyImage';
+import { ImageModal } from './ImageModal';
 
 interface ResultViewProps {
   image: string;
@@ -27,11 +29,25 @@ export default function ResultView({
   const [outfitImages, setOutfitImages] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [selectedGender, setSelectedGender] = useState<"male" | "female" | "all">("all");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [selectedImage, setSelectedImage] = useState<{ src: string; index: number } | null>(null);
+
+  // Pagination configuration
+  const IMAGES_PER_PAGE = 12;
+  const totalPages = Math.ceil(outfitImages.length / IMAGES_PER_PAGE);
+  const startIndex = (currentPage - 1) * IMAGES_PER_PAGE;
+  const endIndex = startIndex + IMAGES_PER_PAGE;
+  const currentImages = outfitImages.slice(startIndex, endIndex);
 
   // 🟦 FIX: Memoize the hex colors → prevents infinite re-renders
   const primaryHexColors = useMemo(() => {
     return primary.map((c) => c.hex);
   }, [primary]);
+
+  // Reset to page 1 when gender filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedGender]);
 
   // --- FETCH MATCHING OUTFITS FROM BACKEND ---
   useEffect(() => {
@@ -42,13 +58,13 @@ export default function ResultView({
         setLoadingOutfits(true);
         setError(null);
 
-         const genderParam =
+        const genderParam =
           selectedGender === "all" ? "" : `?gender=${selectedGender}`;
 
 
         console.log("Fetching outfits for:", primaryHexColors);
 
-       const response = await fetch(
+        const response = await fetch(
           `${API_BASE_URL}/get-matching-clothes${genderParam}`,
           {
             method: "POST",
@@ -203,10 +219,9 @@ export default function ResultView({
                   key={g}
                   onClick={() => setSelectedGender(g as any)}
                   className={`px-5 py-1.5 text-sm font-medium rounded-full transition-all
-                    ${
-                      selectedGender === g
-                        ? "bg-black text-white shadow"
-                        : "text-gray-600 hover:text-black"
+                    ${selectedGender === g
+                      ? "bg-black text-white shadow"
+                      : "text-gray-600 hover:text-black"
                     }
                   `}
                 >
@@ -227,25 +242,57 @@ export default function ResultView({
           ) : outfitImages.length === 0 ? (
             <p className="text-center text-gray-500">No matching outfits found.</p>
           ) : (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {outfitImages.map((src, index) => (
-                <button
-                  key={index}
-                  className="group relative overflow-hidden rounded-lg hover:shadow-lg transition"
-                  onClick={() => window.open(src, "_blank")}
-                >
-                  <img
+            <>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {currentImages.map((src, index) => (
+                  <LazyImage
+                    key={startIndex + index}
                     src={src}
-                    alt={`Outfit ${index + 1}`}
-                    className="h-48 w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                    alt={`Outfit ${startIndex + index + 1}`}
+                    className="group overflow-hidden hover:shadow-lg transition cursor-pointer"
+                    onClick={() => setSelectedImage({ src, index: startIndex + index })}
                   />
-                </button>
-              ))}
-            </div>
+                ))}
+              </div>
+
+              {/* Pagination Controls */}
+              {totalPages > 1 && (
+                <div className="flex justify-center items-center gap-4 mt-6">
+                  <button
+                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                    disabled={currentPage === 1}
+                    className="px-4 py-2 bg-black text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-800 transition"
+                  >
+                    Previous
+                  </button>
+
+                  <span className="text-sm text-gray-600">
+                    Page {currentPage} of {totalPages}
+                  </span>
+
+                  <button
+                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                    disabled={currentPage === totalPages}
+                    className="px-4 py-2 bg-black text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-800 transition"
+                  >
+                    Next
+                  </button>
+                </div>
+              )}
+            </>
           )}
         </div>
 
       </div>
+
+      {/* Image Modal */}
+      <ImageModal
+        isOpen={selectedImage !== null}
+        onClose={() => setSelectedImage(null)}
+        imageSrc={selectedImage?.src || ''}
+        imageAlt={`Outfit ${(selectedImage?.index ?? 0) + 1}`}
+        imageIndex={selectedImage?.index}
+      />
     </div>
   );
 }
