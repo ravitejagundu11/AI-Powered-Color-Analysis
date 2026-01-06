@@ -37,6 +37,9 @@ This repository contains a full-stack application that analyzes facial skin tone
 ## 🚀 Deployment to Google Cloud
 
 ### Production Deployment (VM)
+```
+All scripts will be present in scripts folder.
+```
 
 ```bash
 # 1. Configure Google Cloud credentials
@@ -225,33 +228,6 @@ Interactive API documentation (Swagger UI)
 - **Analysis Time**: 2-3 seconds
 - **Frontend Load**: <1 second
 - **Auto-scaling**: 0-10 instances
-
-## 🛠️ Troubleshooting
-
-### VM Management
-```bash
-# SSH into VM
-./vm-manage.sh ssh
-
-# View backend logs
-./vm-manage.sh logs
-
-# Check VM status
-./vm-manage.sh status
-
-# Stop/start VM
-./vm-manage.sh stop
-./vm-manage.sh start
-```
-
-### Update Application
-```bash
-# Push changes to GitHub
-git push origin main
-
-# Run update script
-./update-deployment.sh
-```
 
 See [DEPLOYMENT.md](./DEPLOYMENT.md) for detailed troubleshooting.
 
