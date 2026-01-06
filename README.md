@@ -148,11 +148,7 @@ AI-Powered-Color-Analysis/
 │   ├── DenseNet/                      # Alternative model
 │   ├── EfficientNetB0/                # Alternative model
 │   └── ResNet34/                      # Alternative model
-├── deploy-vm-cpu.sh                   # Deploy backend to VM
-├── deploy-frontend-vm.sh              # Deploy frontend to VM
-├── setup-domain.sh                    # Configure domain & SSL
-├── update-deployment.sh               # Update running application
-├── vm-manage.sh                       # VM management utilities
+├── scripts/                           # All scripts needed for setup, deployment.
 └── DEPLOYMENT.md                      # VM deployment documentation
 
 ```
